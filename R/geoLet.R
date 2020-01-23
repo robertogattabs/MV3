@@ -18,7 +18,8 @@
 #'               misc3d rgl Rvcg oce rmarkdown moments
 #' @export
 #' @useDynLib moddicomV3
-#' @import stringr XML oro.nifti
+#' @import stringr XML oro.nifti progress
+#' @importFrom mgcv in.out
 geoLet<-function() {
 
   # global variables
@@ -913,7 +914,7 @@ geoLet<-function() {
   #=================================================================================
   getROIVoxels.DICOM<-function( Structure  , new.pixelSpacing=c(), SeriesInstanceUID = NA, croppedCube  = TRUE, onlyVoxelCube = FALSE) {
     objS<-services();
-# browser()
+
     if(!(Structure %in% getROIList())) logObj$sendLog(  paste(c( Structure," not present."  ),collapse = ''), "ERR"  );
     if( length(SeriesInstanceUID) > 1 ) logObj$sendLog(  paste( "Error, too many SeriesInstanceUIDs. No more than one is admitted."  ), "ERR"  );
 
@@ -930,42 +931,32 @@ geoLet<-function() {
     }
 
     # Questo va fatto solo se e' chiaro che non si tratta di un nifti'
-    res <- getROIVoxelsFromCTRMN( Structure = Structure, SeriesInstanceUID = SeriesInstanceUID,
-                                  new.pixelSpacing = new.pixelSpacing)
+    voxelCube <- getROIVoxelsFromCTRMN( Structure = Structure, SeriesInstanceUID = SeriesInstanceUID,
+                                  new.pixelSpacing = new.pixelSpacing)    
 
-    if(sum(!is.na(res$masked.images)) == 0 ) return(list())
+    if(sum(!is.na(voxelCube)) == 0 ) return(list())
 
-    croppedRes<-list()
+    info <- list()
     if( croppedCube == TRUE ) {
-      croppedRes$DOM<-res$DOM
-      croppedRes$geometricalInformationOfImages<-res$geometricalInformationOfImages
-      croppedRes$masked.images<-objS$cropCube( bigCube = res$masked.images)
-      croppedRes$masked.images$location$fe<-dim(res$masked.images)[1]
-      croppedRes$masked.images$location$se<-dim(res$masked.images)[2]
-      croppedRes$masked.images$location$te<-dim(res$masked.images)[3]
-      croppedRes$geometricalInformationOfImages$koc<-"croppedCube"
-      croppedRes$resamplingInformation<-res$resamplingInformation
+      croppedVC <- objS$cropCube( bigCube = voxelCube )
+      voxelCube <- croppedVC$voxelCube
+      info$cropped <- TRUE
+      info$location <- croppedVC$location
     } else {
-      croppedRes$DOM<-res$DOM
-      croppedRes$geometricalInformationOfImages<-res$geometricalInformationOfImages
-      croppedRes$masked.images$location$fe<-dim(res$masked.images)[1]
-      croppedRes$masked.images$location$se<-dim(res$masked.images)[2]
-      croppedRes$masked.images$location$te<-dim(res$masked.images)[3]
-      croppedRes$geometricalInformationOfImages$koc<-"uncroppedCube"
-      croppedRes$resamplingInformation<-res$resamplingInformation
-      croppedRes$masked.images$location$min.x <- 1;      croppedRes$masked.images$location$min.y <- 1;      croppedRes$masked.images$location$min.z <- 1
-      croppedRes$masked.images$location$max.x <- dim(res$masked.images)[1];
-      croppedRes$masked.images$location$max.y <- dim(res$masked.images)[2];
-      croppedRes$masked.images$location$max.z <- dim(res$masked.images)[3];
-      croppedRes$masked.images$voxelCube <- res$masked.images
+      info$cropped <- FALSE
+      info$location$fe<-dim(voxelCube)[1]; info$location$se<-dim(voxelCube)[2]; info$location$te<-dim(voxelCube)[3]
+      info$location$min.x <- 1; info$location$min.y <- 1; info$location$min.z <- 1
+      info$location$max.x <- dim(voxelCube)[1]; info$location$max.y <- dim(voxelCube)[2]; info$location$max.z <- dim(voxelCube)[3];
     }
-    class(croppedRes)<-"geoLetStructureVoxelList"
 
     # Se si vuole indietro SOLO il VOXELCube, prevediamo un ritorno semplificato
-    if( onlyVoxelCube == TRUE ) croppedRes <- croppedRes$masked.images$voxelCube
+    if( onlyVoxelCube == TRUE ) return( voxelCube )
 
     invisible(gc())
-    return( croppedRes )
+    toReturn <- list( "voxelCube" = voxelCube, "info"= info)
+    class(toReturn)<-"ROIVoxel.struct"
+    
+    return( toReturn )
   }
   #=================================================================================
   # NAME: getROIVoxelsFromCTRMN
@@ -979,7 +970,8 @@ geoLet<-function() {
     numberOfRows<-as.numeric(dataStorage$info[[SeriesInstanceUID]][[1]]$Rows);
     numberOfColumns<-as.numeric(dataStorage$info[[SeriesInstanceUID]][[1]]$Columns);
     numberOfSlices<-length(dataStorage$img[[SeriesInstanceUID]]);
-
+    
+    # in case of interpolation
     old.ps <- getPixelSpacing( SeriesInstanceUID =  SeriesInstanceUID)
     if( length(new.pixelSpacing)>0 ) {
       if(new.pixelSpacing[1] == old.ps[1] & new.pixelSpacing[2]==old.ps[2]) new.pixelSpacing<-c()
@@ -990,290 +982,82 @@ geoLet<-function() {
     } else {
       new.numberOfRows <- numberOfRows;   new.numberOfColumns <- numberOfColumns
     }
-
+    
     # initialize the image array with the right dimension
-    image.arr<-array( data = -1, dim = c(numberOfColumns, numberOfRows, numberOfSlices ) )
+    image.arr<-array( data = 0, dim = c(numberOfColumns, numberOfRows, numberOfSlices ) )
+    
+    # prendi le immagini cui e' associata la ROI (referenziata)'
+    tabellaAssociazioni <- dataStorage$info$structures[[Structure]]$associatedSlices
 
-    # index values listed as characters: creates empty array of DICOM orientation matrices
-    index <- as.character(sort(as.numeric(SOPClassUIDList[  which(SOPClassUIDList[,"SeriesInstanceUID"]==SeriesInstanceUID  ),  "ImageOrder" ])))
-
-    # create and fill the vector DOM, of DICOM orientation matrices
-    DOM<-c();  nn<-0
-    for (n in index) {
-      nn<-nn+1
+    pb <- progress_bar$new(total = numberOfSlices)
+    
+    for( n in 1:numberOfSlices ) {
       tmpSOPIUID <- SOPClassUIDList[  which(SOPClassUIDList[,"ImageOrder"]==n  & SOPClassUIDList[,"SeriesInstanceUID"]==SeriesInstanceUID ),  "SOPInstanceUID" ]
-      image.arr[,,nn] <- dataStorage$img[[SeriesInstanceUID]][[tmpSOPIUID]]
-    }
+      field2Order <- as.character(SOPClassUIDList[which( SOPClassUIDList[,"SOPInstanceUID"] == tmpSOPIUID),"field2Order"])
+      
+      # se questa slice risulta associata ad una ROI, allora calcola l'eventuale punto nel poligono
+      if ( tmpSOPIUID %in% tabellaAssociazioni[,"ReferencedSOPInstanceUID"] ) {
 
-    resampled <- FALSE
-    if( length(new.pixelSpacing) > 0) {
-      if( sum(new.pixelSpacing == old.ps) != 3 ) {
-
-        image.arr<-objService$new.trilinearInterpolator(voxelCube = image.arr,
-                                                        pixelSpacing.new = new.pixelSpacing,
-                                                        pixelSpacing.old = old.ps)
-
-        new.pixelSpacing <- c( numberOfColumns/dim(image.arr)[1] * old.ps[1],
-                               numberOfRows/dim(image.arr)[2] * old.ps[2],
-                               new.pixelSpacing[3])
-
-        new.numberOfColumns <- dim(image.arr)[1]
-        new.numberOfRows <- dim(image.arr)[2]
-        resampled <- TRUE
-      }
-    }
-
-    for (n in index) {
-      tmpSOPIUID <- SOPClassUIDList[  which(SOPClassUIDList[,"ImageOrder"]==n  & SOPClassUIDList[,"SeriesInstanceUID"]==SeriesInstanceUID ),  "SOPInstanceUID" ]
-      Dic.Or.Mat <- dataStorage$info[[SeriesInstanceUID]][[tmpSOPIUID]]$orientationMatrix[c(1:3,5:7,13:15)]
-      if(all(new.pixelSpacing==old.ps)==FALSE) {
-        Dic.Or.Mat[1:3] <- Dic.Or.Mat[1:3]* (new.pixelSpacing[1]/old.ps[1])
-        Dic.Or.Mat[4:6] <- Dic.Or.Mat[4:6]* (new.pixelSpacing[2]/old.ps[2])
-      }
-      DOM<-c(DOM, Dic.Or.Mat)
-    }
-
-    # fills the vectors of X and Y coordinates
-    # and other Vectors 'associatedInstanceNumberVect' and 'arrayInstanceNumberWithROI'
-    TotalX<- -10000;  TotalY<- -10000;  arrayAssociationROIandSlice<- -10000;
-    OriginX<- -10000;   OriginY<- -10000
-    associatedInstanceNumberVect<- -10000
-    contatoreROI<-1; indiceDOM<-1;
-    referencedFORUID <- dataStorage$info$structures[[Structure]]$FrameOfReferenceUID
-
-    # for each instance number
-    for (n in index) {
-
-      tmpSOPIUID <- SOPClassUIDList[  which(SOPClassUIDList[,"ImageOrder"]==n & SOPClassUIDList[,"SeriesInstanceUID"]==SeriesInstanceUID  ),  "SOPInstanceUID" ]
-      numeroROIComplanari <- which(dataStorage$info$structures[[Structure]]$associatedSlices[,"ReferencedSOPInstanceUID"] == tmpSOPIUID)
-      if( length( numeroROIComplanari ) > 0 ) {
-
-        elementoListROI <- dataStorage$structures[[Structure]][[tmpSOPIUID]]
-
-        for( xyz in 1:length(elementoListROI)) {
-          field2Order <- SOPClassUIDList[  which(SOPClassUIDList[,"ImageOrder"]==n  & SOPClassUIDList[,"SeriesInstanceUID"]==SeriesInstanceUID ),  "field2Order" ]
-
-          if(field2Order == "IPP.y") {
-            TotalX<-c(TotalX, elementoListROI[[xyz]][,3])
-            TotalY<-c(TotalY, elementoListROI[[xyz]][,1])
-          }
-          if(field2Order == "IPP.z") {
-            TotalX<-c(TotalX, elementoListROI[[xyz]][,1])
-            TotalY<-c(TotalY, elementoListROI[[xyz]][,2])
-          }
-# browser()
-          numeroPunti <- length( elementoListROI[[xyz]][,1])
-          # for each point write which is the related Slice in the cube-matrix
-          arrayAssociationROIandSlice<-c(arrayAssociationROIandSlice,rep(   which( index == n ) -1  , numeroPunti ))
-
-          # Usa OriginX and OriginY as terminator
-          TotalX <- c( TotalX, OriginX )
-          TotalY <- c( TotalY, OriginY )
-          arrayAssociationROIandSlice <- c( arrayAssociationROIandSlice, OriginX )
-
-          contatoreROI <- contatoreROI + 1
+        # Calcola la DOM di quella SLICE
+        DOM <- dataStorage$info[[SeriesInstanceUID]][[tmpSOPIUID]]$orientationMatrix[c(1:3,5:7,13:15)]
+        if(all(new.pixelSpacing==old.ps)==FALSE) {
+          DOM[1:3] <- DOM[1:3]* (new.pixelSpacing[1]/old.ps[1])
+          DOM[4:6] <- DOM[4:6]* (new.pixelSpacing[2]/old.ps[2])
         }
-      }
-    }
-    # browser()
-    quanti.attesi <- length(unique(global_tableROIPointList[ global_tableROIPointList[,"ROIName"]==Structure , "ROIPointList"] ))
-    quanti.assegnati <- contatoreROI - 1
-    if( quanti.attesi !=  quanti.assegnati)  {
-      logObj$sendLog( paste(  c( "only ",quanti.assegnati," polyline have been associated (expected: ",quanti.attesi,")" )   , collapse = '')  );
-    }
+        DOM <- matrix(c(DOM[1:3],0,DOM[4:6],0,0,0,0,0,DOM[7:9],1),ncol=4)
+        # expand grid dei punti della slice
+        mtr.punti <- expand.grid( 1:numberOfColumns , 1:numberOfRows )
+        # calcolo delle coordinate di ogni punto
+        risultato <- t(apply( mtr.punti,MARGIN = 1, function(x) {  DOM %*% c( unlist(x),0,1)  }))
+        risultato <- cbind( risultato, c( "Nx" = rep( NA, nrow(risultato) ) ) )
+        risultato <- cbind( risultato, c( "Ny" = rep( NA, nrow(risultato) ) ) )
+        risultato <- cbind( risultato, c( "Out" = rep( NA, nrow(risultato) ) ) )
+        
+        # cicla, perche' piu' poliline di una stessa ROI potrebbe essere associata alla slice
+        polylineDaAnalizzare <- tabellaAssociazioni[tabellaAssociazioni[,"ReferencedSOPInstanceUID"]==tmpSOPIUID,"ROIPointList"]
+        for( pol.num in 1:length(polylineDaAnalizzare)) {
 
-    # ok, call the Wrapper!
-    final.array<-NewMultiPointInPolyObl(
-      # array of DICOM Orientation Matrices
-      DICOMOrientationVector = DOM,
-      # X and Y vector Points
-      totalX = TotalX, totalY = TotalY,
-      # association between ROIs and Slices in the 3D Matrix
-      arrayAssociationROIandSlice = arrayAssociationROIandSlice,
-      # matrices dimensions (rows and columns)
-      nX = new.numberOfColumns,
-      nY = new.numberOfRows,
-      nZ = numberOfSlices
-    )
+          ROI <- matrix(as.numeric(unlist(str_split(polylineDaAnalizzare[pol.num],"\\\\")[[1]])),ncol=3, byrow=T)
+          xlim <- range(ROI[,1]); ylim <- range(ROI[,2]);  zlim <- range(ROI[,3])
+          
+          # estrai le righe valide (interne al bounding box di 'risultato')
+          righe.valide <- which((risultato[,1] > xlim[1] & risultato[,1] < xlim[2]) & (risultato[,2] > ylim[1] & risultato[,2] < ylim[2]) & (risultato[,3] > zlim[1] & risultato[,3] < zlim[2]) )
+          # copia le righe valide all'interno della tabella
+          risultato[righe.valide,5] <- mtr.punti[righe.valide,1]
+          risultato[righe.valide,6] <- mtr.punti[righe.valide,2]
 
-    final.array<-array(data = final.array, dim = c(   new.numberOfColumns, new.numberOfRows, numberOfSlices )   )
+          if(field2Order == "IPP.z" ) {
+            points2Test <- risultato[righe.valide,c(1,2)] # not yet validated
+            ROI <- ROI[,c(1,2)]
+          }
+          if(field2Order == "IPP.y" ) {
+            points2Test <- risultato[righe.valide,c(1,3)] # not yet validated
+            ROI <- ROI[,c(1,3)]
+          }
+          if(field2Order == "IPP.x" ) {
+            points2Test <- risultato[righe.valide,c(2,3)] # not yet validated
+            ROI <- ROI[,c(2,3)]
+          }
+          
+          # Ora fai il point-in-polygon
+          punti.interni <- which(in.out(ROI,points2Test))
+          
+          # filtra risultato sui soli punti che ha senso scorrere per costruire la maschera di '1'
+          risultato <- risultato[righe.valide,][punti.interni,]
 
-    # ROTATE THE MATRIX
-    for ( i in seq(1,dim(image.arr)[3] )) {
-      final.array[,,i]<-t(objService$rotateMatrix(final.array[,,i],rotations=3))
-    }
+          # posiziona gli '1' della maschera
+          tmp <- apply( risultato[,c(5,6)], MARGIN = 1, function(x){ image.arr[ x[1], x[2], n ] <<- 1} )
 
-    immagineMascherata <- array(NA, dim=c(  dim(image.arr)[1],dim(image.arr)[2],dim(image.arr)[3]  ))
-    immagineMascherata[ which( final.array == 1, arr.ind = TRUE ) ] <- image.arr[ which( final.array == 1, arr.ind = TRUE) ]
-    return(list(
-      "DOM"=array(DOM, dim = c(3,3,length(index))),
-      "final.array"=final.array,
-      "masked.images"=immagineMascherata,
-      "geometricalInformationOfImages"=list(),
-      "resamplingInformation"=list(
-        "px" = new.pixelSpacing[1], "py" = new.pixelSpacing[1], "pz" = new.pixelSpacing[3], "resampled" = resampled,
-        "numberOfRows" = new.numberOfRows, "numberOfColumns" = new.numberOfColumns)
-    )
-    )
-  }
-  old.getROIVoxelsFromCTRMN<-function( Structure = Structure, SeriesInstanceUID = SeriesInstanceUID,
-                                         new.pixelSpacing=c() ) {
-    objService<-services()
-
-    # define some variables to make more clear the code
-    numberOfRows<-as.numeric(dataStorage$info[[SeriesInstanceUID]][[1]]$Rows);
-    numberOfColumns<-as.numeric(dataStorage$info[[SeriesInstanceUID]][[1]]$Columns);
-    numberOfSlices<-length(dataStorage$img[[SeriesInstanceUID]]);
-
-    browser()
-
-    old.ps <- getPixelSpacing( SeriesInstanceUID =  SeriesInstanceUID)
-    if( length(new.pixelSpacing)>0 ) {
-      if(new.pixelSpacing[1] == old.ps[1] & new.pixelSpacing[2]==old.ps[2]) new.pixelSpacing<-c()
-    }
-    if(  length(new.pixelSpacing)>0 ){
-      new.pixelSpacing <- c(new.pixelSpacing,old.ps[3])
-      ratio.ps.x <- old.ps[1] / new.pixelSpacing[1];   ratio.ps.y <- old.ps[2] / new.pixelSpacing[2]
-    } else {
-      new.numberOfRows <- numberOfRows;   new.numberOfColumns <- numberOfColumns
-    }
-
-    # initialize the image array with the right dimension
-    image.arr<-array( data = -1, dim = c(numberOfColumns, numberOfRows, numberOfSlices ) )
-
-    # index values listed as characters: creates empty array of DICOM orientation matrices
-    index <- as.character(sort(as.numeric(SOPClassUIDList[  which(SOPClassUIDList[,"SeriesInstanceUID"]==SeriesInstanceUID  ),  "ImageOrder" ])))
-
-    # create and fill the vector DOM, of DICOM orientation matrices
-    DOM<-c();  nn<-0
-    for (n in index) {
-      nn<-nn+1
-      tmpSOPIUID <- SOPClassUIDList[  which(SOPClassUIDList[,"ImageOrder"]==n  & SOPClassUIDList[,"SeriesInstanceUID"]==SeriesInstanceUID ),  "SOPInstanceUID" ]
-      image.arr[,,nn] <- dataStorage$img[[SeriesInstanceUID]][[tmpSOPIUID]]
-    }
-
-    resampled <- FALSE
-    if( length(new.pixelSpacing) > 0) {
-      if( sum(new.pixelSpacing == old.ps) != 3 ) {
-
-        image.arr<-objService$new.trilinearInterpolator(voxelCube = image.arr,
-                                                        pixelSpacing.new = new.pixelSpacing,
-                                                        pixelSpacing.old = old.ps)
-
-        new.pixelSpacing <- c( numberOfColumns/dim(image.arr)[1] * old.ps[1],
-                               numberOfRows/dim(image.arr)[2] * old.ps[2],
-                               new.pixelSpacing[3])
-
-        new.numberOfColumns <- dim(image.arr)[1]
-        new.numberOfRows <- dim(image.arr)[2]
-        resampled <- TRUE
-      }
-    }
-
-    for (n in index) {
-      tmpSOPIUID <- SOPClassUIDList[  which(SOPClassUIDList[,"ImageOrder"]==n  & SOPClassUIDList[,"SeriesInstanceUID"]==SeriesInstanceUID ),  "SOPInstanceUID" ]
-      Dic.Or.Mat <- dataStorage$info[[SeriesInstanceUID]][[tmpSOPIUID]]$orientationMatrix[c(1:3,5:7,13:15)]
-      if(all(new.pixelSpacing==old.ps)==FALSE) {
-        Dic.Or.Mat[1:3] <- Dic.Or.Mat[1:3]* (new.pixelSpacing[1]/old.ps[1])
-        Dic.Or.Mat[4:6] <- Dic.Or.Mat[4:6]* (new.pixelSpacing[2]/old.ps[2])
-      }
-      DOM<-c(DOM, Dic.Or.Mat)
-    }
-
-    # fills the vectors of X and Y coordinates
-    # and other Vectors 'associatedInstanceNumberVect' and 'arrayInstanceNumberWithROI'
-    TotalX<- -10000;  TotalY<- -10000;  arrayAssociationROIandSlice<- -10000;
-    OriginX<- -10000;   OriginY<- -10000
-    associatedInstanceNumberVect<- -10000
-    contatoreROI<-1; indiceDOM<-1;
-    referencedFORUID <- dataStorage$info$structures[[Structure]]$FrameOfReferenceUID
-
-    # for each instance number
-    for (n in index) {
-
-      tmpSOPIUID <- SOPClassUIDList[  which(SOPClassUIDList[,"ImageOrder"]==n & SOPClassUIDList[,"SeriesInstanceUID"]==SeriesInstanceUID  ),  "SOPInstanceUID" ]
-      numeroROIComplanari <- which(dataStorage$info$structures[[Structure]]$associatedSlices[,"ReferencedSOPInstanceUID"] == tmpSOPIUID)
-      if( length( numeroROIComplanari ) > 0 ) {
-
-        elementoListROI <- dataStorage$structures[[Structure]][[tmpSOPIUID]]
-
-        for( xyz in 1:length(elementoListROI)) {
-          TotalX<-c(TotalX, elementoListROI[[xyz]][,1])
-          TotalY<-c(TotalY, elementoListROI[[xyz]][,2])
-
-          numeroPunti <- length( elementoListROI[[xyz]][,1])
-          # for each point write which is the related Slice in the cube-matrix
-          arrayAssociationROIandSlice<-c(arrayAssociationROIandSlice,rep(   which( index == n ) -1  , numeroPunti ))
-
-          # Usa OriginX and OriginY as terminator
-          TotalX <- c( TotalX, OriginX )
-          TotalY <- c( TotalY, OriginY )
-          arrayAssociationROIandSlice <- c( arrayAssociationROIandSlice, OriginX )
-
-          contatoreROI <- contatoreROI + 1
         }
-      }
+      } 
+      pb$tick()
     }
 
-    quanti.attesi <- length(unique(global_tableROIPointList[ global_tableROIPointList[,"ROIName"]==Structure , "ROIPointList"] ))
-    quanti.assegnati <- contatoreROI - 1
-    if( quanti.attesi !=  quanti.assegnati)  {
-      logObj$sendLog( paste(  c( "only ",quanti.assegnati," polyline have been associated (expected: ",quanti.attesi,")" )   , collapse = '')  );
-    }
+    # ROIVoxelCube <- VC[,,] * image.arr[,dim(image.arr)[2]:1,]
+    ROIVoxelCube <- getImageVoxelCube()
+    ROIVoxelCube[which( image.arr[,dim(image.arr)[2]:1,] == 0, arr.ind = T)] <- NA
 
-    # ok, call the Wrapper!
-    final.array<-NewMultiPointInPolyObl(
-      # array of DICOM Orientation Matrices
-      DICOMOrientationVector = DOM,
-      # X and Y vector Points
-      totalX = TotalX, totalY = TotalY,
-      # association between ROIs and Slices in the 3D Matrix
-      arrayAssociationROIandSlice = arrayAssociationROIandSlice,
-      # matrices dimensions (rows and columns)
-      nX = new.numberOfColumns,
-      nY = new.numberOfRows,
-      nZ = numberOfSlices
-    )
-
-    final.array<-array(data = final.array, dim = c(   new.numberOfColumns, new.numberOfRows, numberOfSlices )   )
-
-    # ROTATE THE MATRIX
-    for ( i in seq(1,dim(image.arr)[3] )) {
-      final.array[,,i]<-t(objService$rotateMatrix(final.array[,,i],rotations=3))
-    }
-
-    immagineMascherata <- array(NA, dim=c(  dim(image.arr)[1],dim(image.arr)[2],dim(image.arr)[3]  ))
-    immagineMascherata[ which( final.array == 1, arr.ind = TRUE ) ] <- image.arr[ which( final.array == 1, arr.ind = TRUE) ]
-    return(list(
-      "DOM"=array(DOM, dim = c(3,3,length(index))),
-      "final.array"=final.array,
-      "masked.images"=immagineMascherata,
-      "geometricalInformationOfImages"=list(),
-      "resamplingInformation"=list(
-        "px" = new.pixelSpacing[1], "py" = new.pixelSpacing[1], "pz" = new.pixelSpacing[3], "resampled" = resampled,
-        "numberOfRows" = new.numberOfRows, "numberOfColumns" = new.numberOfColumns)
-    )
-    )
-  }
-  #=================================================================================
-  # NewMultiPointInPolyObl
-  #=================================================================================
-  NewMultiPointInPolyObl<-function(DICOMOrientationVector,totalX,totalY,arrayAssociationROIandSlice,nX,nY,nZ ) {
-
-    maxX<-max(totalX)
-    minX<-min(totalX[which(totalX>-10000)])
-    maxY<-max(totalY)
-    minY<-min(totalY[which(totalY>-10000)])
-
-    # creates the PIPvector
-    PIPvector<-rep.int(x = 0, times = nX * nY * nZ)
-    numberOfPoints<-length(totalX);
-    result<-.C("NewMultiPIPObl",
-               as.integer(PIPvector), as.double(totalX), as.double(totalY), as.integer(numberOfPoints),
-               as.integer(nX), as.integer(nY), as.integer(nZ),
-               as.integer(arrayAssociationROIandSlice),
-               as.double(DICOMOrientationVector),as.double(minX),as.double(maxX),as.double(minY),as.double(maxY))
-    return(result[[1]])
+    return( ROIVoxelCube )
   }
   #=================================================================================
   # getPixelSpacing
