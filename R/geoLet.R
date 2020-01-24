@@ -890,7 +890,55 @@ geoLet<-function() {
     # slice <- 10;  nifti.VC[ which(nifti.VC==0) ] <- NA;    image(VC[,,slice]);    image(nifti.VC[,,35* slice/(dim(VC)[3]) ], add=T,col='green')
     VC <- getImageVoxelCube(SeriesInstanceUID = SeriesInstanceUID)
     masked.array <- array(0,dim = dim(VC) )
-# browser()
+
+# -im
+# -----------------------------------------
+# primo approccio
+# -----------------------------------------
+i <- 1
+j <- 1
+k <- 1
+q <- slot(aaa,"pixdim")[1]
+
+q.b <- slot(aaa,"quatern_b")
+q.c <- slot(aaa,"quatern_c")
+q.d <- slot(aaa,"quatern_d")
+q.a <- sqrt( 1 - q.b^2 - q.c^2 - q.d^2 )
+
+R.M <- matrix(0,ncol=3, nrow=3)
+R.M[1,1] <- q.a^2 + q.b^2 - q.c^2 - q.d^2
+R.M[1,2] <- 2*(q.b*q.c-q.a*q.d)
+R.M[1,3] <- 2*(q.b*q.d-q.a*q.c)
+R.M[2,1] <- 2*(q.b*q.c-q.a*q.d)
+R.M[2,2] <- q.a^2 + q.b^2 - q.c^2 - q.d^2
+R.M[2,3] <- 2*(q.c*q.d-q.a*q.b)
+R.M[3,1] <- 2*(q.b*q.d-q.a*q.c)
+R.M[3,2] <- 2*(q.c*q.d-q.a*q.b)
+R.M[3,3] <- q.a^2 + q.b^2 - q.c^2 - q.d^2
+
+vett.C <- c( slot(aaa,"pixdim")[2], slot(aaa,"pixdim")[3] , slot(aaa,"pixdim")[4] )
+
+op.1 <- R.M %*% c(i,j, k*q)
+op.2 <- c(0,0,0)
+op.2[1] <- op.1[1]* vett.C[1]
+op.2[2] <- op.1[2]* vett.C[2]
+op.2[3] <- op.1[3]* vett.C[3]
+op.2[1] < op.2[1] + slot(aaa,"qoffset_x")
+op.2[2] < op.2[2] + slot(aaa,"qoffset_y")
+op.2[3] < op.2[3] + slot(aaa,"qoffset_z")
+risultato <- op.2
+
+# -----------------------------------------
+# secondo approccio
+# -----------------------------------------
+R.M <- matrix(c(slot(aaa,"srow_x"),slot(aaa,"srow_y"),slot(aaa,"srow_z"),0,0,0,1),byrow = T,ncol=4)
+risultato <- R.M %*% c(i,j,k,1)
+# -----------------------------------------
+
+# ora devo prendere i punti di aaa che non sono NA, calcolarne le coordinate x,y,z ed accendere i voxel corrispondendi nel voxel cube per vedere se matchano
+
+
+# -fm
     if(  dim.x < dim(VC)[1]  | dim.y < dim(VC)[2] | dim.z < dim(VC)[3] ) stop("one of the dimensions of the nifti cube is less than the voxel cube, please check")
 
     matrice.Punti <- which( nifti.VC!=0,arr.ind = T )
