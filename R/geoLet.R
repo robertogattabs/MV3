@@ -879,13 +879,18 @@ geoLet<-function() {
     nifti.VC <- slot(aaa,".Data")
     if( slot(aaa,"reoriented") == FALSE ) logObj$sendLog(  "In the NIFTI file, 'reoriented' is set to FALSE" ,"ERR" );
     if( slot(aaa,"scl_slope") != 1 ) logObj$sendLog(  "In the NIFTI file, 'slope' is no 1" ,"ERR" );
-    if( slot(aaa,"scl_inter") != 0 ) logObj$sendLog(  "In the NIFTI file, 'intercept' is no 1" ,"ERR" );
+    if( slot(aaa,"scl_inter") != 0 ) logObj$sendLog(  "In the NIFTI file, 'intercept' is not 1" ,"ERR" );
+    # https://brainder.org/2012/09/23/the-nifti-file-format/  
+    if(slot(aaa,"qform_code") != 1 ) logObj$sendLog(  "In the NIFTI file, 'qform_code' is not 1" ,"ERR" );
+    if(slot(aaa,"sform_code") != 1 ) logObj$sendLog(  "In the NIFTI file, 'sform_code' is not 1" ,"ERR" );
+    if(slot(aaa,"slice_code") != 0 ) logObj$sendLog(  "In the NIFTI file, 'slice_code' is not 0" ,"ERR" );
+    
     dim.x <- slot(aaa,"dim_")[2];    dim.y <- slot(aaa,"dim_")[3];    dim.z <- slot(aaa,"dim_")[4]
 
     # slice <- 10;  nifti.VC[ which(nifti.VC==0) ] <- NA;    image(VC[,,slice]);    image(nifti.VC[,,35* slice/(dim(VC)[3]) ], add=T,col='green')
     VC <- getImageVoxelCube(SeriesInstanceUID = SeriesInstanceUID)
     masked.array <- array(0,dim = dim(VC) )
-
+# browser()
     if(  dim.x < dim(VC)[1]  | dim.y < dim(VC)[2] | dim.z < dim(VC)[3] ) stop("one of the dimensions of the nifti cube is less than the voxel cube, please check")
 
     matrice.Punti <- which( nifti.VC!=0,arr.ind = T )
