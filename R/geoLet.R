@@ -24,6 +24,7 @@ geoLet<-function() {
 
   # global variables
   internalAttributes<-list()                             # Attributes
+  cacheArea <- list()                                    # Cache
   logObj<-logHandler()                                   # log/error handler Object
   dataStorage<-list()                                    # memory data structure
   SOPClassUIDList<-c()
@@ -401,7 +402,7 @@ geoLet<-function() {
           substr( fileNameWithPath, nchar( fileNameWithPath ) - 3,nchar(fileNameWithPath))!='.raw' &
           substr( fileNameWithPath, nchar( fileNameWithPath ) - (str_length(internalAttributes$defaultExtension.nifti)-1),nchar(fileNameWithPath))!=internalAttributes$defaultExtension.nifti
           ) {
-# browser()
+
         if( internalAttributes$verbose == TRUE ) cat(".")
 
         riga <- nrow(MMatrix) + 1
@@ -870,7 +871,6 @@ geoLet<-function() {
   #=================================================================================
   getROIVoxels.NIFTI<-function( Structure  , new.pixelSpacing=c(), SeriesInstanceUID = NA, croppedCube  = TRUE, onlyVoxelCube = FALSE, voxel.inclusion.threshold ) {
     objS<-services();
-    # browser()
 
     if( length(new.pixelSpacing) > 1) stop("\n Interpolation not yet supported")
 
@@ -901,7 +901,6 @@ geoLet<-function() {
     # calcola il rapporto in volume dei voxels e guarda quali sono sopra o sotto soglia
     # rapporto <- round( (dim(VC)[1] * dim(VC)[2] * dim(VC)[3]) / ( dim.x * dim.y * dim.z ) * internalAttributes$threshold.4.niftiROI )
     rapporto <- round( ( dim.x * dim.y * dim.z )  / (dim(VC)[1] * dim(VC)[2] * dim(VC)[3])  * voxel.inclusion.threshold )
-    # browser()
 
     masked.array[ which( masked.array < rapporto ) ] <- 0
     masked.array[ which( masked.array != 0 ) ] <- 1
@@ -966,6 +965,16 @@ geoLet<-function() {
                                    new.pixelSpacing=c() ) {
     objService<-services()
 
+    # se esiste gia' in cache, usa quanto gia' c'e'
+    # browser()
+    if( "ROI" %in% names(cacheArea)) {
+      if( Structure %in% names(cacheArea[["ROI"]]) ) {
+        if ( cacheArea[["ROI"]][[Structure]]$SeriesInstanceUID == SeriesInstanceUID & length(new.pixelSpacing)==0 ) {
+          return( cacheArea[["ROI"]][[Structure]]$voxelCube  )
+        }
+      }
+    }
+
     # define some variables to make more clear the code
     numberOfRows<-as.numeric(dataStorage$info[[SeriesInstanceUID]][[1]]$Rows);
     numberOfColumns<-as.numeric(dataStorage$info[[SeriesInstanceUID]][[1]]$Columns);
@@ -988,6 +997,7 @@ geoLet<-function() {
     
     # prendi le immagini cui e' associata la ROI (referenziata)'
     tabellaAssociazioni <- dataStorage$info$structures[[Structure]]$associatedSlices
+    if( length(tabellaAssociazioni) == 4 ) {tmpAN <- names(tabellaAssociazioni) } else { tmpAn <- colnames(tabellaAssociazioni) }
 
     pb <- progress_bar$new(total = numberOfSlices)
     
@@ -995,6 +1005,9 @@ geoLet<-function() {
       tmpSOPIUID <- SOPClassUIDList[  which(SOPClassUIDList[,"ImageOrder"]==n  & SOPClassUIDList[,"SeriesInstanceUID"]==SeriesInstanceUID ),  "SOPInstanceUID" ]
       field2Order <- as.character(SOPClassUIDList[which( SOPClassUIDList[,"SOPInstanceUID"] == tmpSOPIUID),"field2Order"])
       
+      # per il caso in cui la tabella abbia solo una riga... (castala a marix)
+      if( length(tabellaAssociazioni) == 4 ) {  tabellaAssociazioni <- matrix(tabellaAssociazioni,ncol=4); colnames(tabellaAssociazioni)<-tmpAN    }
+
       # se questa slice risulta associata ad una ROI, allora calcola l'eventuale punto nel poligono
       if ( tmpSOPIUID %in% tabellaAssociazioni[,"ReferencedSOPInstanceUID"] ) {
 
@@ -1019,9 +1032,18 @@ geoLet<-function() {
 
           ROI <- matrix(as.numeric(unlist(str_split(polylineDaAnalizzare[pol.num],"\\\\")[[1]])),ncol=3, byrow=T)
           xlim <- range(ROI[,1]); ylim <- range(ROI[,2]);  zlim <- range(ROI[,3])
-          
+
           # estrai le righe valide (interne al bounding box di 'risultato')
-          righe.valide <- which((risultato[,1] > xlim[1] & risultato[,1] < xlim[2]) & (risultato[,2] > ylim[1] & risultato[,2] < ylim[2]) & (risultato[,3] > zlim[1] & risultato[,3] < zlim[2]) )
+          if(field2Order == "IPP.z" ) {
+            righe.valide <- which((risultato[,1] >= xlim[1] & risultato[,1] <= xlim[2]) & (risultato[,2] >= ylim[1] & risultato[,2] <= ylim[2])  )
+          }
+          if(field2Order == "IPP.y" ) {
+            righe.valide <- which((risultato[,1] >= xlim[1] & risultato[,1] <= xlim[2]) & (risultato[,3] >= zlim[1] & risultato[,3] <= zlim[2]) )            
+          }          
+          if(field2Order == "IPP.x" ) {
+            righe.valide <- which((risultato[,2] >= ylim[1] & risultato[,2] <= ylim[2]) & (risultato[,3] >= zlim[1] & risultato[,3] <= zlim[2]) )
+          }        
+
           # copia le righe valide all'interno della tabella
           risultato[righe.valide,5] <- mtr.punti[righe.valide,1]
           risultato[righe.valide,6] <- mtr.punti[righe.valide,2]
@@ -1056,6 +1078,15 @@ geoLet<-function() {
     # ROIVoxelCube <- VC[,,] * image.arr[,dim(image.arr)[2]:1,]
     ROIVoxelCube <- getImageVoxelCube()
     ROIVoxelCube[which( image.arr[,dim(image.arr)[2]:1,] == 0, arr.ind = T)] <- NA
+
+    # aggiorna la cache
+    if(  length(new.pixelSpacing)==0 ) {
+      cacheArea[["ROI"]][[Structure]] <<- list()
+      cacheArea[["ROI"]][[Structure]]$SeriesInstanceUID <<- SeriesInstanceUID
+      if(length(new.pixelSpacing)>0)  cacheArea[["ROI"]][[Structure]]$pixelSpacing <<- new.pixelSpacing
+      if(length(old.ps)>0)  cacheArea[["ROI"]][[Structure]]$pixelSpacing <<- old.ps
+      cacheArea[["ROI"]][[Structure]]$voxelCube <<- ROIVoxelCube
+    }
 
     return( ROIVoxelCube )
   }
@@ -1203,6 +1234,7 @@ geoLet<-function() {
     dataStorage$info <<- list()
     SOPClassUIDList <<- list()
     global_tableROIPointList<<-c()
+    cacheArea <<- list( "ROI" = list() )
 
   }
   constructor( )
