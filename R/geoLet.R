@@ -852,6 +852,15 @@ geoLet<-function() {
   #=================================================================================
   getROIVoxels<-function( Structure  , new.pixelSpacing=c(), SeriesInstanceUID = NA, croppedCube  = TRUE, onlyVoxelCube = FALSE, voxel.inclusion.threshold = 0.5) {
 
+    if( is.na(SeriesInstanceUID) ) {
+      SeriesInstanceUID <- giveBackImageSeriesInstanceUID()  
+    }
+    
+    if( !(Structure %in% names(dataStorage$info$structures)) ) {
+      logObj$sendLog(  "Error: the mentioned ROI does not exist", "ERR"  );
+      return( NA )
+    }
+    
     if( dataStorage$info$structures[[Structure]]$type == "DICOMRTStruct" ) {
       res <- getROIVoxels.DICOM(Structure = Structure , new.pixelSpacing=new.pixelSpacing,
                                 SeriesInstanceUID = SeriesInstanceUID, croppedCube  = croppedCube,
@@ -872,6 +881,11 @@ geoLet<-function() {
   getROIVoxels.NIFTI<-function( Structure  , new.pixelSpacing=c(), SeriesInstanceUID = NA, croppedCube  = TRUE, onlyVoxelCube = FALSE, voxel.inclusion.threshold ) {
     objS<-services();
 
+    if(SOPClassUIDList[SOPClassUIDList[,"SeriesInstanceUID"] == SeriesInstanceUID & SOPClassUIDList[,"type"]=="IMG","field2Order"][1] !="IPP.z") {
+      logObj$sendLog(  "ERROR: the NIFTI ROI extractions only work with axial images, for the moment", "ERR"  );
+    }
+    
+    
     if( length(new.pixelSpacing) > 1) stop("\n Interpolation not yet supported")
 
     fileNameWithPath <- dataStorage$info$structures[[ Structure ]]$fileName
@@ -889,70 +903,30 @@ geoLet<-function() {
 
     # slice <- 10;  nifti.VC[ which(nifti.VC==0) ] <- NA;    image(VC[,,slice]);    image(nifti.VC[,,35* slice/(dim(VC)[3]) ], add=T,col='green')
     VC <- getImageVoxelCube(SeriesInstanceUID = SeriesInstanceUID)
+    
     masked.array <- array(0,dim = dim(VC) )
 
-# -im
-# -----------------------------------------
-# primo approccio
-# -----------------------------------------
-i <- 1
-j <- 1
-k <- 1
-q <- slot(aaa,"pixdim")[1]
-
-q.b <- slot(aaa,"quatern_b")
-q.c <- slot(aaa,"quatern_c")
-q.d <- slot(aaa,"quatern_d")
-q.a <- sqrt( 1 - q.b^2 - q.c^2 - q.d^2 )
-
-R.M <- matrix(0,ncol=3, nrow=3)
-R.M[1,1] <- q.a^2 + q.b^2 - q.c^2 - q.d^2
-R.M[1,2] <- 2*(q.b*q.c-q.a*q.d)
-R.M[1,3] <- 2*(q.b*q.d-q.a*q.c)
-R.M[2,1] <- 2*(q.b*q.c-q.a*q.d)
-R.M[2,2] <- q.a^2 + q.b^2 - q.c^2 - q.d^2
-R.M[2,3] <- 2*(q.c*q.d-q.a*q.b)
-R.M[3,1] <- 2*(q.b*q.d-q.a*q.c)
-R.M[3,2] <- 2*(q.c*q.d-q.a*q.b)
-R.M[3,3] <- q.a^2 + q.b^2 - q.c^2 - q.d^2
-
-vett.C <- c( slot(aaa,"pixdim")[2], slot(aaa,"pixdim")[3] , slot(aaa,"pixdim")[4] )
-
-op.1 <- R.M %*% c(i,j, k*q)
-op.2 <- c(0,0,0)
-op.2[1] <- op.1[1]* vett.C[1]
-op.2[2] <- op.1[2]* vett.C[2]
-op.2[3] <- op.1[3]* vett.C[3]
-op.2[1] < op.2[1] + slot(aaa,"qoffset_x")
-op.2[2] < op.2[2] + slot(aaa,"qoffset_y")
-op.2[3] < op.2[3] + slot(aaa,"qoffset_z")
-risultato <- op.2
-
-# -----------------------------------------
-# secondo approccio
-# -----------------------------------------
-R.M <- matrix(c(slot(aaa,"srow_x"),slot(aaa,"srow_y"),slot(aaa,"srow_z"),0,0,0,1),byrow = T,ncol=4)
-risultato <- R.M %*% c(i,j,k,1)
-# -----------------------------------------
-
-# ora devo prendere i punti di aaa che non sono NA, calcolarne le coordinate x,y,z ed accendere i voxel corrispondendi nel voxel cube per vedere se matchano
-
-
-# -fm
-    if(  dim.x < dim(VC)[1]  | dim.y < dim(VC)[2] | dim.z < dim(VC)[3] ) stop("one of the dimensions of the nifti cube is less than the voxel cube, please check")
+    if(  dim.x < dim(VC)[1]  | dim.y < dim(VC)[2] | dim.z < dim(VC)[3] ) logObj$sendLog(  "Warning, the NIFTI cube has different dimension: we propose a visual check of the results"  );
 
     matrice.Punti <- which( nifti.VC!=0,arr.ind = T )
+    
+    xlim <- range(matrice.Punti[,1])
+    ylim <- range(matrice.Punti[,1])
+    zlim <- range(matrice.Punti[,1])
 
     for( riga in 1:nrow(matrice.Punti )) {
       pos.old.VC <- c(  ( matrice.Punti[riga,1] / dim(nifti.VC)[1]) * dim( VC )[1],
                         ( matrice.Punti[riga,2] / dim(nifti.VC)[2]) * dim( VC )[2],
-                        ( matrice.Punti[riga,3] )  )
-      pos.old.VC <- round( pos.old.VC )
+                        ( matrice.Punti[riga,3] / dim(nifti.VC)[3]) * dim( VC )[3]  )
+                        # ( matrice.Punti[riga,3] )  )
+      pos.old.VC <- ceiling( pos.old.VC )
       masked.array[ pos.old.VC[1], pos.old.VC[2], pos.old.VC[3]  ] <- masked.array[ pos.old.VC[1], pos.old.VC[2], pos.old.VC[3]  ] + 1
+      pos.old.VC <- floor( pos.old.VC )
+      masked.array[ pos.old.VC[1], pos.old.VC[2], pos.old.VC[3]  ] <- masked.array[ pos.old.VC[1], pos.old.VC[2], pos.old.VC[3]  ] + 1
+      
     }
 
     # calcola il rapporto in volume dei voxels e guarda quali sono sopra o sotto soglia
-    # rapporto <- round( (dim(VC)[1] * dim(VC)[2] * dim(VC)[3]) / ( dim.x * dim.y * dim.z ) * internalAttributes$threshold.4.niftiROI )
     rapporto <- round( ( dim.x * dim.y * dim.z )  / (dim(VC)[1] * dim(VC)[2] * dim(VC)[3])  * voxel.inclusion.threshold )
 
     masked.array[ which( masked.array < rapporto ) ] <- 0
@@ -1168,6 +1142,22 @@ risultato <- R.M %*% c(i,j,k,1)
     return( arr.SeriesInstanceUID )
   }
   #=================================================================================
+  # get3DPosFromNxNy
+  #=================================================================================
+  get3DPosFromNxNy<-function(  Nx, Ny, Nz, SeriesInstanceUID = NA ) {
+    
+    # if not passed, get the series Instance UID of the images
+    if(is.na(SeriesInstanceUID)) {
+      SeriesInstanceUID <- giveBackImageSeriesInstanceUID()
+      if( length(SeriesInstanceUID) > 1) stop("Too many SeriesIntanceUID have been found: which one?")
+    }    
+    
+    SOPInstanceUID <- as.character(SOPClassUIDList[ SOPClassUIDList[ ,"SeriesInstanceUID"]==SeriesInstanceUID & SOPClassUIDList[ ,"type"]=="IMG" & SOPClassUIDList[ ,"ImageOrder"]== Nz, "SOPInstanceUID"])
+    oppa <- services()
+    res <- oppa$get3DPosFromNxNy(Nx,Ny,dataStorage$info[[ SeriesInstanceUID ]][[SOPInstanceUID]]$orientationMatrix)[1:3]
+    return(res)
+  }
+  #=================================================================================
   # createImageVoxelCube
   # create the imageVoxelCube for the current obj and for the image stored
   #=================================================================================
@@ -1302,6 +1292,54 @@ risultato <- R.M %*% c(i,j,k,1)
     "getROIImageImageAssociations"=getROIImageImageAssociations,
     "get.CT.SeriesInstanceUID"=get.CT.SeriesInstanceUID,
     "get.MRI.SeriesInstanceUID"=get.MRI.SeriesInstanceUID,
-    "get.PET.SeriesInstanceUID"=get.PET.SeriesInstanceUID
+    "get.PET.SeriesInstanceUID"=get.PET.SeriesInstanceUID,
+    "get3DPosFromNxNy"=get3DPosFromNxNy
     ))
 }
+# # -im
+# # -----------------------------------------
+# # primo approccio
+# # -----------------------------------------
+# i <- 1
+# j <- 1
+# k <- 1
+# q <- slot(aaa,"pixdim")[1]
+# 
+# q.b <- slot(aaa,"quatern_b")
+# q.c <- slot(aaa,"quatern_c")
+# q.d <- slot(aaa,"quatern_d")
+# q.a <- sqrt( 1 - q.b^2 - q.c^2 - q.d^2 )
+# 
+# R.M <- matrix(0,ncol=3, nrow=3)
+# R.M[1,1] <- q.a^2 + q.b^2 - q.c^2 - q.d^2
+# R.M[1,2] <- 2*(q.b*q.c-q.a*q.d)
+# R.M[1,3] <- 2*(q.b*q.d-q.a*q.c) 
+# R.M[2,1] <- 2*(q.b*q.c-q.a*q.d)
+# R.M[2,2] <- q.a^2 + q.b^2 - q.c^2 - q.d^2
+# R.M[2,3] <- 2*(q.c*q.d-q.a*q.b)
+# R.M[3,1] <- 2*(q.b*q.d-q.a*q.c)
+# R.M[3,2] <- 2*(q.c*q.d-q.a*q.b)
+# R.M[3,3] <- q.a^2 + q.b^2 - q.c^2 - q.d^2
+# 
+# vett.C <- c( slot(aaa,"pixdim")[2], slot(aaa,"pixdim")[3] , slot(aaa,"pixdim")[4] )
+# 
+# op.1 <- R.M %*% c(i,j, k*q)
+# op.2 <- c(0,0,0)
+# op.2[1] <- op.1[1]* vett.C[1]
+# op.2[2] <- op.1[2]* vett.C[2]
+# op.2[3] <- op.1[3]* vett.C[3]
+# op.2[1] < op.2[1] + slot(aaa,"qoffset_x")
+# op.2[2] < op.2[2] + slot(aaa,"qoffset_y")
+# op.2[3] < op.2[3] + slot(aaa,"qoffset_z")
+# risultato <- op.2
+# 
+# # -----------------------------------------
+# # secondo approccio
+# # -----------------------------------------
+# R.M <- matrix(c(slot(aaa,"srow_x"),slot(aaa,"srow_y"),slot(aaa,"srow_z"),0,0,0,1),byrow = T,ncol=4)
+# risultato <- R.M %*% c(i,j,k,1)
+# # -----------------------------------------
+# 
+# 
+# 
+# # -fm
