@@ -1245,6 +1245,13 @@ geoLet<-function() {
     if(!is.na(maxROIPlaneDistance))  internalAttributes$maxDistanceForImageROICoupling <<- maxROIPlaneDistance
   }
   #=================================================================================
+  # dashboard
+  #=================================================================================
+  dashboard<-function( ) {
+    dashboard.geoLet()
+  }
+
+  #=================================================================================
   # Constructor
   #=================================================================================
   constructor<-function( ) {
@@ -1293,7 +1300,8 @@ geoLet<-function() {
     "get.CT.SeriesInstanceUID"=get.CT.SeriesInstanceUID,
     "get.MRI.SeriesInstanceUID"=get.MRI.SeriesInstanceUID,
     "get.PET.SeriesInstanceUID"=get.PET.SeriesInstanceUID,
-    "get3DPosFromNxNy"=get3DPosFromNxNy
+    "get3DPosFromNxNy"=get3DPosFromNxNy,
+    "dashboard"=dashboard
     ))
 }
 # # -im
