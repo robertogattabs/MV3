@@ -5,14 +5,14 @@
 #'               In order to see manuals for the single mathods, consider the vignette or use the
 #'               available for the following wrapping functions:
 #'               \itemize{
-#'               \item \code{GLT.openDICOMFolder( );} : to load a DICOM series into an geoLet object
-#'               \item \code{GLT.getImageVoxelCube( );} : to get the ImageVoxelCube stored into a geoLet object
-#'               \item \code{GLT.getPixelSpacing( );} : to get the pixelSpacing (x,y,z) of the main ImageVoxelCube stored into a geoLet object
-#'               \item \code{GLT.getROIList( );} : to get the list of the ROI defined in a geoLet object
-#'               \item \code{GLT.getTag( );} : to get a single DICOM-tag of a DICOM file loaded into a geoLet object
-#'               \item \code{GLT.getROIVoxels( );} : to get the IMAGE Voxels geometrically located into a ROI, for a given geoLet object
-#'               \item \code{GLT.extractDoseVoxels( );} : to get the DOSE Voxels geometrically located into a ROI, for a given geoLet object
-#'               \item \code{GLT.calculateDVH( );} : to get the DVH calculated from a geoLet object
+#'               \item \code{openDICOMFolder( );} : to load a DICOM series into an geoLet object
+#'               \item \code{getImageVoxelCube( );} : to get the ImageVoxelCube stored into a geoLet object
+#'               \item \code{getPixelSpacing( );} : to get the pixelSpacing (x,y,z) of the main ImageVoxelCube stored into a geoLet object
+#'               \item \code{getROIList( );} : to get the list of the ROI defined in a geoLet object
+#'               \item \code{getTag( );} : to get a single DICOM-tag of a DICOM file loaded into a geoLet object
+#'               \item \code{getROIVoxels( );} : to get the IMAGE Voxels geometrically located into a ROI, for a given geoLet object
+#'               \item \code{extractDoseVoxels( );} : to get the DOSE Voxels geometrically located into a ROI, for a given geoLet object
+#'               \item \code{calculateDVH( );} : to get the DVH calculated from a geoLet object
 #'               }
 #'               The original methods for the class geoLet can also be invocked using the same name without the previx 'GTL.', i.e.:
 #'               misc3d rgl Rvcg oce rmarkdown moments
@@ -35,35 +35,35 @@ geoLet<-function() {
   # Loads a Folder containing one or more DICOM Studies
   #=================================================================================
   # Open a folder and load the content
-  openDICOMFolder<-function(pathToOpen) {
+  openDICOMFolder<-function( pathToOpen ) {
 
     if(!dir.exists(pathToOpen)) logObj$handle( "error" , "The indicate Path does not exist"  );
 
     # ----------------------------------------------
     # get the dcm file type
     # ----------------------------------------------
-    if( internalAttributes$verbose == TRUE ) cat("\n Dir scouting: ")
+    if( internalAttributes$verbose == TRUE ) cat("\n Dir scouting:\n ")
     SOPClassUIDList<<-getFolderContent( pathToOpen );
 
     # ----------------------------------------------
     # Load CT/RMN Scans
     # ----------------------------------------------
-    if( internalAttributes$verbose == TRUE ) cat("\n Image Loading: ")
+    if( internalAttributes$verbose == TRUE ) cat("\n Image Loading:\n ")
     loadCTRMNRDScans( );
 
     # ----------------------------------------------
     # Carica l'RTStruct, se presente
     # ----------------------------------------------
     if( internalAttributes$verbose == TRUE ) cat("\n RTStruct Loading: ")
-    loadRTStructFiles()
-    if( internalAttributes$verbose == TRUE ) cat("Done")
+    a <- loadRTStructFiles()
+    if( internalAttributes$verbose == TRUE ) cat( a$quantity," structures loaded" )
 
     # ----------------------------------------------
     # Carica i nifti, se presenti
     # ----------------------------------------------
     if( internalAttributes$verbose == TRUE ) cat("\n nifti files Loading: ")
-    loadNIFTIFileDescription()
-    if( internalAttributes$verbose == TRUE ) cat("Done")
+    a <- loadNIFTIFileDescription()
+    if( internalAttributes$verbose == TRUE ) cat( a$quantity," structures loaded" )
   }
 
   #=================================================================================
@@ -71,6 +71,7 @@ geoLet<-function() {
   # Loads the nifti files in the folder
   #=================================================================================
   loadNIFTIFileDescription<-function( ) {
+    total.number <- 0
     for( riga in 1:nrow(SOPClassUIDList) ) {
       if( SOPClassUIDList[ riga , "kind"] == "nifti" ) {
         fileNameWithPath <- SOPClassUIDList[ riga , "fileName"]
@@ -92,8 +93,10 @@ geoLet<-function() {
         dataStorage$info$structures[[ROIName]]$type <<- "NIFTI"
         dataStorage$info$structures[[ROIName]]$fileName <<- fileNameWithPath
         dataStorage$info$structures[[ROIName]]$loaded <<- FALSE
+        total.number <- total.number + 1
       }
     }
+    return( list("quantity"=total.number))
   }
   #=================================================================================
   # loadRTStructFiles
@@ -185,6 +188,7 @@ geoLet<-function() {
     }
 
     dataStorage[["structures"]]<<-listaROI
+    return( list("quantity"=length(listaROI)))
   }
   #####################################################################################
   # getStructuresFromXML: carica il file xml del RT struct
@@ -394,7 +398,13 @@ geoLet<-function() {
     ImagingPositionArray <- c()
     Iteration <- 0
     ImageOrder <- 1
+    
+    if( internalAttributes$verbose == TRUE )    pb <- progress_bar$new(total = length(DCMFilenameArray))
+    
     for(i in 1:length(DCMFilenameArray) ) {
+      
+      if( internalAttributes$verbose == TRUE ) pb$tick()
+      
       fileNameWithPath<-paste(pathToOpen,"/",DCMFilenameArray[i] , sep="")
       # Nel caso in cui sia DICOM
       # if( substr(fileNameWithPath,nchar(fileNameWithPath)-3,nchar(fileNameWithPath))=='.dcm' ) {
@@ -940,7 +950,7 @@ geoLet<-function() {
   #=================================================================================
   getROIVoxels.DICOM<-function( Structure  , new.pixelSpacing=c(), SeriesInstanceUID = NA, croppedCube  = TRUE, onlyVoxelCube = FALSE) {
     objS<-services();
-
+# browser()
     if(!(Structure %in% getROIList())) logObj$sendLog(  paste(c( Structure," not present."  ),collapse = ''), "ERR"  );
     if( length(SeriesInstanceUID) > 1 ) logObj$sendLog(  paste( "Error, too many SeriesInstanceUIDs. No more than one is admitted."  ), "ERR"  );
 
@@ -1103,7 +1113,7 @@ geoLet<-function() {
     }
 
     # ROIVoxelCube <- VC[,,] * image.arr[,dim(image.arr)[2]:1,]
-    ROIVoxelCube <- getImageVoxelCube()
+    ROIVoxelCube <- getImageVoxelCube( SeriesInstanceUID = SeriesInstanceUID)
     ROIVoxelCube[which( image.arr[,dim(image.arr)[2]:1,] == 0, arr.ind = T)] <- NA
 
     # aggiorna la cache
@@ -1181,6 +1191,37 @@ geoLet<-function() {
     return(cubone)
   }
   #=================================================================================
+  # showROIs
+  #=================================================================================
+  showROIs <-  function( objGeoLet, arr.ROInames, rows = 3, cols = 3 , grey.scale = TRUE, alpha = 0.4, SeriesInstanceUID=NA ) {
+    
+    # carica il voxel Cube e le ROI
+    lst.ROI <- list()
+    VC <- objGeoLet$getImageVoxelCube(SeriesInstanceUID = SeriesInstanceUID)
+    for( ROIName in arr.ROInames ) { lst.ROI[[ ROIName ]] <- objGeoLet$getROIVoxels(Structure = ROIName,croppedCube = F,onlyVoxelCube = T, SeriesInstanceUID = SeriesInstanceUID) }
+    
+    # prepara la finestra per l'output
+    par(mfrow=c(rows,cols))
+    par(mar=c(0,0,0,0))
+    
+    # prendi le z in cui compare almeno una ROI
+    slices <- sort(unique(unlist(lapply( lst.ROI, function( cubo ) { unique(which(!is.na(cubo),arr.ind = T)[,3])  } ))))
+    
+    # plotta ogni slice
+    for( z in 1:length( slices ) ) {
+      if( grey.scale == TRUE) image( VC[,,slices[z]],col = grey.colors(255,start = 0))
+      else image(VC[,,slices[z]])
+      
+      # e per ogni slice plotta le ROI che vi sono associate
+      for( ROIName in arr.ROInames ) {
+        # se per quella slice e quella ROI c'e' almeno un pixel != 0, allora plotta
+        if( sum(!is.na(lst.ROI[[ ROIName ]][,,slices[z]])) > 0 ) {
+          image( lst.ROI[[ ROIName ]][,,slices[z]],add=T, col = rgb(0.8,0,0,alpha = alpha))  
+        }
+      }
+    } 
+  }
+  #=================================================================================
   # getDICOMTag
   # tag = which tag
   # fileName = nome del file (se presente)
@@ -1245,13 +1286,6 @@ geoLet<-function() {
     if(!is.na(maxROIPlaneDistance))  internalAttributes$maxDistanceForImageROICoupling <<- maxROIPlaneDistance
   }
   #=================================================================================
-  # dashboard
-  #=================================================================================
-  dashboard<-function( ) {
-    dashboard.geoLet()
-  }
-
-  #=================================================================================
   # Constructor
   #=================================================================================
   constructor<-function( ) {
@@ -1301,7 +1335,7 @@ geoLet<-function() {
     "get.MRI.SeriesInstanceUID"=get.MRI.SeriesInstanceUID,
     "get.PET.SeriesInstanceUID"=get.PET.SeriesInstanceUID,
     "get3DPosFromNxNy"=get3DPosFromNxNy,
-    "dashboard"=dashboard
+    "showROIs"=showROIs
     ))
 }
 # # -im
