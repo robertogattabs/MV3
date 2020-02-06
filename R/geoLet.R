@@ -941,6 +941,9 @@ geoLet<-function() {
 
     masked.array[ which( masked.array < rapporto ) ] <- 0
     masked.array[ which( masked.array != 0 ) ] <- 1
+    
+    # Tenere a 0 o a NA???
+    masked.array[ which( masked.array == 0 ) ] <- NA
 
     return(masked.array)
   }
@@ -1191,37 +1194,6 @@ geoLet<-function() {
     return(cubone)
   }
   #=================================================================================
-  # showROIs
-  #=================================================================================
-  showROIs <-  function( objGeoLet, arr.ROInames, rows = 3, cols = 3 , grey.scale = TRUE, alpha = 0.4, SeriesInstanceUID=NA ) {
-    
-    # carica il voxel Cube e le ROI
-    lst.ROI <- list()
-    VC <- objGeoLet$getImageVoxelCube(SeriesInstanceUID = SeriesInstanceUID)
-    for( ROIName in arr.ROInames ) { lst.ROI[[ ROIName ]] <- objGeoLet$getROIVoxels(Structure = ROIName,croppedCube = F,onlyVoxelCube = T, SeriesInstanceUID = SeriesInstanceUID) }
-    
-    # prepara la finestra per l'output
-    par(mfrow=c(rows,cols))
-    par(mar=c(0,0,0,0))
-    
-    # prendi le z in cui compare almeno una ROI
-    slices <- sort(unique(unlist(lapply( lst.ROI, function( cubo ) { unique(which(!is.na(cubo),arr.ind = T)[,3])  } ))))
-    
-    # plotta ogni slice
-    for( z in 1:length( slices ) ) {
-      if( grey.scale == TRUE) image( VC[,,slices[z]],col = grey.colors(255,start = 0))
-      else image(VC[,,slices[z]])
-      
-      # e per ogni slice plotta le ROI che vi sono associate
-      for( ROIName in arr.ROInames ) {
-        # se per quella slice e quella ROI c'e' almeno un pixel != 0, allora plotta
-        if( sum(!is.na(lst.ROI[[ ROIName ]][,,slices[z]])) > 0 ) {
-          image( lst.ROI[[ ROIName ]][,,slices[z]],add=T, col = rgb(0.8,0,0,alpha = alpha))  
-        }
-      }
-    } 
-  }
-  #=================================================================================
   # getDICOMTag
   # tag = which tag
   # fileName = nome del file (se presente)
@@ -1334,8 +1306,7 @@ geoLet<-function() {
     "get.CT.SeriesInstanceUID"=get.CT.SeriesInstanceUID,
     "get.MRI.SeriesInstanceUID"=get.MRI.SeriesInstanceUID,
     "get.PET.SeriesInstanceUID"=get.PET.SeriesInstanceUID,
-    "get3DPosFromNxNy"=get3DPosFromNxNy,
-    "showROIs"=showROIs
+    "get3DPosFromNxNy"=get3DPosFromNxNy
     ))
 }
 # # -im
