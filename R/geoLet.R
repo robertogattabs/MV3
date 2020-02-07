@@ -1206,11 +1206,18 @@ geoLet<-function() {
   #=================================================================================
   # getROIImageImageAssociations
   #=================================================================================
-  getROIImageImageAssociations<-function( ROIName ) {
+  getROIImageImageAssociations<-function( ROIName, details = FALSE  ) {
+    ROISlicePositions <- c()
     if( length( ROIName ) != 1 ) stop("Please, specify the interested ROI")
     kkk <- global_tableROIPointList[  which( global_tableROIPointList[,"ROIName"] %in% ROIName ) ,"ReferencedSOPInstanceUID"]
     aaa <- table(SOPClassUIDList[  which( SOPClassUIDList[,"SOPInstanceUID"] %in% kkk ) , "kind"])
-    return(aaa)
+    
+    if( details == TRUE ) {
+      OIVC <- getROIVoxels(Structure = ROIName,croppedCube = F,onlyVoxelCube = T )  
+      ROISlicePositions <- as.numeric((1:dim(OIVC)[3]) %in% unique(which(!is.na(OIVC),arr.ind = T)[,3] ))
+    }
+    
+    return( list("recap" = aaa , "ROISlicePositions"= ROISlicePositions) )
   }
   #=================================================================================
   # getFilesInfo

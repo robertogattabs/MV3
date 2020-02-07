@@ -207,6 +207,7 @@ geo.getFilesInfo <- function( obj.geoLet  ) {
 #' @description  return a table containing the number of ROIs associated for each loaded Series. The \code{associaation} between ROIs and images can happen when a polyline of the ROI is coplanar with the image. For point is very important becase if not considered can let you miss a significant number of polyline of the ROI
 #' @param obj.geoLet a \code{geoLet} obj
 #' @param ROIName the ROIName you want to check
+#' @param details (boolean, default to \code{FALSE} ). If set to \code{TRUE} it takes more time but also give back a set of 0 and 1 to say which slices in the imagexovelcube are associated to the ROI
 #' @export
 #' @examples \dontrun{
 #' 
@@ -223,8 +224,8 @@ geo.getFilesInfo <- function( obj.geoLet  ) {
 #' 
 #' geo.getROIImageImageAssociations(ooo)
 #' }
-geo.getROIImageImageAssociations <- function( obj.geoLet, ROIName  ) {
-  return( obj.geoLet$getROIImageImageAssociations( ROIName = ROIName) ) 
+geo.getROIImageImageAssociations <- function( obj.geoLet, ROIName , details = FALSE ) {
+  return( obj.geoLet$getROIImageImageAssociations( ROIName = ROIName, details = details) ) 
 }
 
 #' graphs images and ROIs
