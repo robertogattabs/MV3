@@ -114,7 +114,7 @@ void newnewtrilinearInterpolator(
   punt->newXDim = *newXps;  punt->newYDim = *newYps;  punt->newZDim = *newZps;
   punt->xNVoxel = *NXold; punt->yNVoxel = *NYold; punt->zNVoxel = *NZold;
   punt->xDim = *oldXps; punt->yDim = *oldYps; punt->zDim = *oldZps;
-  int maxNewXVoxel,maxNewYVoxel,maxNewZVoxel;
+  int maxNewYVoxel,maxNewZVoxel;
 
   // Pulisci la matrice di destinazione
   for(int ct=0;ct< ((*NXnew)*(*NYnew)*(*NZnew));ct++ ) returnMatrix[ct]=0;
@@ -335,4 +335,64 @@ void NewMultiOrientedPIPObl (int *PIPvector, double *totalX, double *totalY, dou
       }
     }
   }
+}
+
+/*imported from Nic */
+
+/*
+ * Function for calculating the DOUBLE of area of a facet in a triangular mesh
+ */
+double FacetSurface(double p1X, double p1Y, double p1Z, 
+                    double p2X, double p2Y, double p2Z, double p3X, double p3Y, double p3Z) {
+  double ax = p2X - p1X;
+  double ay = p2Y - p1Y;
+  double az = p2Z - p1Z;
+  double bx = p3X - p1X;
+  double by = p3Y - p1Y;
+  double bz = p3Z - p1Z;
+  double cx = ay*bz - az*by;
+  double cy = az*bx - ax*bz;
+  double cz = ax*by - ay*bx;
+  //printf("\np2X*p3Y-p3X*p2Y=%lf",p2X * p3Y - p3X * p2Y );
+  return sqrt(cx*cx + cy*cy + cz*cz);
+}
+
+/*
+ * Function for calculating SIX TIMES the signed volume
+ * of a tetrahedron in a triangular mesh
+ */
+double SignedVolumeOfTriangle(double p1X, double p1Y, double p1Z, 
+                              double p2X, double p2Y, double p2Z, double p3X, double p3Y, double p3Z) {
+  double v321 = p3X*p2Y*p1Z;
+  double v231 = p2X*p3Y*p1Z;
+  double v312 = p3X*p1Y*p2Z;
+  double v132 = p1X*p3Y*p2Z;
+  double v213 = p2X*p1Y*p3Z;
+  double v123 = p1X*p2Y*p3Z;
+  //printf("\ndVolume=%lf", (double)(1.0/6.0));
+  return (-v321 + v231 + v312 - v132 - v213 + v123);	
+}
+
+/* 
+ * Function for calculating the mesh surface
+ */
+void MeshSurface(double *X, double *Y, double *Z, int *numT, int *V1, int *V2, int *V3, double *Surface) {
+  int n;			// counter
+  *Surface = 0;	// initial surface
+  for (n=0; n<*numT; n++) {
+    *Surface = *Surface + FacetSurface(X[V1[n]], Y[V1[n]], Z[V1[n]], X[V2[n]], Y[V2[n]], Z[V2[n]], X[V3[n]], Y[V3[n]], Z[V3[n]]);
+  }
+  *Surface=0.5 * *Surface;
+}
+/* 
+ * Function for calulating the volume of a mesh
+ */
+void MeshVolume(double *X, double *Y, double *Z, int *numT, int *V1, int *V2, int *V3, double *Volume) {
+  int n;			// counter
+  *Volume=0; 		// initial volume
+  for (n=0; n<*numT; n++) {
+    *Volume = *Volume + SignedVolumeOfTriangle(X[V1[n]], Y[V1[n]], Z[V1[n]], X[V2[n]], Y[V2[n]], Z[V2[n]], X[V3[n]], Y[V3[n]], Z[V3[n]]);
+    //printf("\nX = %lf Y = %lf Z = %lf n = %d", X[V1[n]], Y[V1[n]], Z[V1[n]], n);
+  }
+  *Volume = fabs(*Volume * (double)(1.0/6.0));  // absolute value of a double
 }

@@ -3,7 +3,7 @@
 #' @description  It handles messages from script to a chosen output (screen, file, etc.)
 #' @useDynLib moddicomV3
 #' @export
-#' @import stringr XML
+#' @import stringr XML misc3d
 services<-function() {
   # ------------------------------------------------
   # rotateMatrix
@@ -136,6 +136,46 @@ services<-function() {
     location<-list( "min.x"=min.x, "max.x"=max.x, "min.y"=min.y, "max.y"=max.y, "min.z"=min.z, "max.z"=max.z  )
     return( list ( "voxelCube"=newCube, "location"=location) )
   }
+  # ========================================================================================
+  # triangle2mesh
+  # ========================================================================================  
+  triangle2mesh <- function(x) {
+    v <- list()
+    n <- nrow(x$v1)
+    nit <- 1:n
+    v$vb <- t(cbind(rbind(x$v1,x$v2,x$v3),1))
+    v$it <- rbind(nit,nit+n,nit+2*n)
+    class(v) <- "mesh3d"
+    return(v)
+  }
+  
+  # ========================================================================================
+  # StructureVolume
+  # ========================================================================================
+  StructureVolume<-function(mesh, measure.unit=c("cm3", "mm3")) {
+    if (class(x = mesh)!="mesh3d") stop("mesh isn't a mesh3d object")
+    measure.unit<-match.arg(arg = measure.unit)
+    if (measure.unit=="mm3") mu<-1
+    if (measure.unit=="cm3") mu<-1000
+    Volume=0
+    return(.C("MeshVolume", as.double(mesh$vb[1,]), as.double(mesh$vb[2,]), as.double(mesh$vb[3,]),
+              as.integer(ncol(mesh$it)), as.integer(mesh$it[1,]-1), as.integer(mesh$it[2,]-1),
+              as.integer(mesh$it[3,]-1), as.double(Volume))[[8]]/mu)
+  }
+  
+  # ========================================================================================
+  # StructureSurface
+  # ========================================================================================
+  StructureSurface<-function(mesh, measure.unit=c("cm2", "mm2")) {
+    if (class(x = mesh)!="mesh3d") stop("mesh isn't a mesh3d object")
+    measure.unit<-match.arg(arg = measure.unit)
+    if (measure.unit=="mm2") mu<-1
+    if (measure.unit=="cm2") mu<-100
+    Surface=0
+    return(.C("MeshSurface", as.double(mesh$vb[1,]), as.double(mesh$vb[2,]), as.double(mesh$vb[3,]),
+              as.integer(ncol(mesh$it)), as.integer(mesh$it[1,]-1), as.integer(mesh$it[2,]-1),
+              as.integer(mesh$it[3,]-1), as.double(Surface))[[8]]/mu)
+  }  
 
   return( list(
     "get3DPosFromNxNy"=get3DPosFromNxNy,
@@ -146,6 +186,11 @@ services<-function() {
     "splittaTAG"=splittaTAG,
     "new.trilinearInterpolator"=new.trilinearInterpolator,
     "rotateMatrix"=rotateMatrix,
-    "cropCube"=cropCube
+    "cropCube"=cropCube,
+    "triangle2mesh"=triangle2mesh,
+    "StructureVolume"=StructureVolume,
+    "StructureSurface"=StructureSurface
   ))
 }
+
+
