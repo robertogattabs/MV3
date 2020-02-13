@@ -1157,7 +1157,7 @@ geoLet<-function() {
   #=================================================================================
   # get3DPosFromNxNy
   #=================================================================================
-  get3DPosFromNxNy<-function(  Nx, Ny, Nz, SeriesInstanceUID = NA ) {
+  get3DPosFromNxNy<-function(  Nx, Ny, Nz, SeriesInstanceUID = NA , get.OM.back = FALSE) {
     
     # if not passed, get the series Instance UID of the images
     if(is.na(SeriesInstanceUID)) {
@@ -1167,7 +1167,10 @@ geoLet<-function() {
     
     SOPInstanceUID <- as.character(SOPClassUIDList[ SOPClassUIDList[ ,"SeriesInstanceUID"]==SeriesInstanceUID & SOPClassUIDList[ ,"type"]=="IMG" & SOPClassUIDList[ ,"ImageOrder"]== Nz, "SOPInstanceUID"])
     oppa <- services()
-    res <- oppa$get3DPosFromNxNy(Nx,Ny,dataStorage$info[[ SeriesInstanceUID ]][[SOPInstanceUID]]$orientationMatrix)[1:3]
+    OM <- dataStorage$info[[ SeriesInstanceUID ]][[SOPInstanceUID]]$orientationMatrix
+    res <- oppa$get3DPosFromNxNy(Nx,Ny,OM)[1:3]
+    
+    if( get.OM.back == TRUE) res <- list( "res"=res,"OM"=OM )
     return(res)
   }
   #=================================================================================
@@ -1264,6 +1267,97 @@ geoLet<-function() {
     if(!is.na(RTStructFileName)) internalAttributes$explicitRTStructFileName <<- RTStructFileName
     if(!is.na(maxROIPlaneDistance))  internalAttributes$maxDistanceForImageROICoupling <<- maxROIPlaneDistance
   }
+  # ===============================================================
+  # getInterpolatedSlice
+  # ===============================================================
+  getInterpolatedSlice<-function( SIUID.pty , SIUID.ref , slice  ) {
+    
+    CT.SIUID <- SIUID.pty
+    PT.SIUID <- SIUID.ref
+    
+    CT.VC <- getImageVoxelCube(SeriesInstanceUID = CT.SIUID )
+    PT.VC <- getImageVoxelCube(SeriesInstanceUID = PT.SIUID )    
+    
+    CT.z <- matrix(unlist(lapply( 1:dim(CT.VC)[3], function(x) {get3DPosFromNxNy(Nx = 1,Ny = 1,Nz = x,SeriesInstanceUID = CT.SIUID ) } )),ncol=3,byrow = T)[,3]
+    PT.z <- matrix(unlist(lapply( 1:dim(PT.VC)[3], function(x) {get3DPosFromNxNy(Nx = 1,Ny = 1,Nz = x,SeriesInstanceUID = PT.SIUID ) } )),ncol=3,byrow = T)[,3]
+    
+    zRiferimento <- CT.z[slice]
+    slice.b <- which(unlist(lapply( 1:(length(PT.z)-1), function(x) {  sign((PT.z[x]-zRiferimento)*(PT.z[x+1]-zRiferimento)) } ))==-1)
+    slice.t <- slice.b + 1
+    
+    SOPInstanceUID.b.PT <- SOPClassUIDList[which(SOPClassUIDList[,"SeriesInstanceUID"] == PT.SIUID & SOPClassUIDList[,"ImageOrder"] == slice.b),"SOPInstanceUID"]
+    SOPInstanceUID.t.PT <- SOPClassUIDList[which(SOPClassUIDList[,"SeriesInstanceUID"] == PT.SIUID & SOPClassUIDList[,"ImageOrder"] == slice.t),"SOPInstanceUID"]
+    SOPInstanceUID.CT <- SOPClassUIDList[which(SOPClassUIDList[,"SeriesInstanceUID"] == CT.SIUID & SOPClassUIDList[,"ImageOrder"] == slice.t),"SOPInstanceUID"]
+    
+    IOM.b.PT <- array(dataStorage$info[[PT.SIUID]][[SOPInstanceUID.b.PT]]$orientationMatrix)
+    IOM.t.PT <- array(dataStorage$info[[PT.SIUID]][[SOPInstanceUID.t.PT]]$orientationMatrix)
+    IOM.CT <- array(dataStorage$info[[CT.SIUID]][[SOPInstanceUID.CT]]$orientationMatrix)    
+    nx.PT <- dim( PT.VC )[1]; ny.PT <- dim( PT.VC )[2];
+    nx.CT <- dim( CT.VC )[1]; ny.CT <- dim( CT.VC )[2];
+    slice.b.PT <- slice.b; slice.t.PT <- slice.t
+    slice.CT <- slice
+    image.b.PT <- PT.VC[,,slice.b]; image.t.PT <- PT.VC[,,slice.t];
+    result <- CT.VC[,,slice] * 0 
+    
+    browser()
+    # 
+    # library(moddicomV3)
+    # ooo <- geoLet()
+    # ooo$openDICOMFolder(pathToOpen = "/home/localadmin/sharedFolder/GEDiscovery690/")
+    # 
+    # ooo$getInterpolatedSlice(SIUID.pty = ooo$get.CT.SeriesInstanceUID(),SIUID.ref = ooo$get.PET.SeriesInstanceUID(), slice = 300 )
+    # 
+    # 
+
+    return( res )
+  }    
+  # ===============================================================
+  # getInterpolatedSlice
+  # ===============================================================
+  c_getInterpolatedSlice<-function( SIUID.pty , SIUID.ref , slice  ) {
+    
+    CT.SIUID <- SIUID.pty
+    PT.SIUID <- SIUID.ref
+    
+    CT.VC <- getImageVoxelCube(SeriesInstanceUID = CT.SIUID )
+    PT.VC <- getImageVoxelCube(SeriesInstanceUID = PT.SIUID )    
+    
+    CT.z <- matrix(unlist(lapply( 1:dim(CT.VC)[3], function(x) {get3DPosFromNxNy(Nx = 1,Ny = 1,Nz = x,SeriesInstanceUID = CT.SIUID ) } )),ncol=3,byrow = T)[,3]
+    PT.z <- matrix(unlist(lapply( 1:dim(PT.VC)[3], function(x) {get3DPosFromNxNy(Nx = 1,Ny = 1,Nz = x,SeriesInstanceUID = PT.SIUID ) } )),ncol=3,byrow = T)[,3]
+    
+    zRiferimento <- CT.z[slice]
+    slice.b <- which(unlist(lapply( 1:(length(PT.z)-1), function(x) {  sign((PT.z[x]-zRiferimento)*(PT.z[x+1]-zRiferimento)) } ))==-1)
+    slice.t <- slice.b + 1
+
+    SOPInstanceUID.b.PT <- SOPClassUIDList[which(SOPClassUIDList[,"SeriesInstanceUID"] == PT.SIUID & SOPClassUIDList[,"ImageOrder"] == slice.b),"SOPInstanceUID"]
+    SOPInstanceUID.t.PT <- SOPClassUIDList[which(SOPClassUIDList[,"SeriesInstanceUID"] == PT.SIUID & SOPClassUIDList[,"ImageOrder"] == slice.t),"SOPInstanceUID"]
+    SOPInstanceUID.CT <- SOPClassUIDList[which(SOPClassUIDList[,"SeriesInstanceUID"] == CT.SIUID & SOPClassUIDList[,"ImageOrder"] == slice.t),"SOPInstanceUID"]
+
+    IOM.b.PT <- array(dataStorage$info[[PT.SIUID]][[SOPInstanceUID.b.PT]]$orientationMatrix)
+    IOM.t.PT <- array(dataStorage$info[[PT.SIUID]][[SOPInstanceUID.t.PT]]$orientationMatrix)
+    IOM.CT <- array(dataStorage$info[[CT.SIUID]][[SOPInstanceUID.CT]]$orientationMatrix)    
+    nx.PT <- dim( PT.VC )[1]; ny.PT <- dim( PT.VC )[2];
+    nx.CT <- dim( CT.VC )[1]; ny.CT <- dim( CT.VC )[2];
+    slice.b.PT <- slice.b; slice.t.PT <- slice.t
+    slice.CT <- slice
+    image.b.PT <- PT.VC[,,slice.b]; image.t.PT <- PT.VC[,,slice.t];
+    result <- CT.VC[,,slice] * 0 
+    
+    browser()
+
+    res<-.C("c_getInterpolatedSlice",
+            as.integer(nx.PT), as.integer(ny.PT),
+            as.integer(slice.b.PT), as.integer(slice.t.PT),
+            as.double(IOM.b.PT), as.double(IOM.t.PT),
+            
+            as.integer(nx.CT), as.integer(ny.CT),
+            as.integer(slice.CT),
+            as.double(IOM.CT),
+            
+            as.double(image.b.PT),as.double(image.t.PT),
+            as.double(result) );
+    return( res )
+  }   
   #=================================================================================
   # Constructor
   #=================================================================================
@@ -1313,7 +1407,8 @@ geoLet<-function() {
     "get.CT.SeriesInstanceUID"=get.CT.SeriesInstanceUID,
     "get.MRI.SeriesInstanceUID"=get.MRI.SeriesInstanceUID,
     "get.PET.SeriesInstanceUID"=get.PET.SeriesInstanceUID,
-    "get3DPosFromNxNy"=get3DPosFromNxNy
+    "get3DPosFromNxNy"=get3DPosFromNxNy,
+    "getInterpolatedSlice"=getInterpolatedSlice
     ))
 }
 # # -im

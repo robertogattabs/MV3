@@ -155,8 +155,8 @@ void newnewtrilinearInterpolator(
     if(maxNewZVoxel<zVoxelProgressivo) maxNewZVoxel = zVoxelProgressivo;
   }
   free(punt);
-
 }
+
 
 /*
  nvert :   number of vertex
@@ -189,6 +189,21 @@ struct pointInSpace get3DPosFromNxNy(int Nx, int Ny, struct DICOM_OrientationMat
   pis.z = DOM.a31 * Nx * DOM.XpixelSpacing + DOM.a32 * Ny * DOM.YpixelSpacing + DOM.Sz;
   return pis;
 }
+
+/*
+ * Function for calculating the <Nx,Ny> coords of a voxel into the space
+ */
+struct pointInSpace getNxNyPos3D( double Px, double Py, double Pz, struct DICOM_OrientationMatrix DOM) {
+  struct pointInSpace pis;
+  double Xx,  Xy, Xz,  Yx, Yy, Yz, Sx, Sy, Sz;
+  Xx = DOM.a11; Xy = DOM.a21; Xz = DOM.a31;
+  Yx = DOM.a12; Yy = DOM.a22; Yz = DOM.a32;
+  
+  pis.x = Xz * (Px-Sx) - Xx*(Pz-Sz) /  (Xz*Yx - Yz*Xx );
+  pis.y = Yx * (Py-Sy) - Yy*(Px-Sx) /  (Yx*Xy - Yy*Xx );
+  return pis;
+}
+
 
 /*
  *  Algorithm for Point In Polygon on Oblique planes
@@ -395,4 +410,101 @@ void MeshVolume(double *X, double *Y, double *Z, int *numT, int *V1, int *V2, in
     //printf("\nX = %lf Y = %lf Z = %lf n = %d", X[V1[n]], Y[V1[n]], Z[V1[n]], n);
   }
   *Volume = fabs(*Volume * (double)(1.0/6.0));  // absolute value of a double
+}
+
+void c_getInterpolatedSlice(
+    int *nx_PT, int *ny_PT,
+    int *slice_b_PT, int *slice_t_PT,
+    double *IOM_b_PT, double *IOM_t_PT,
+    int *nx_CT, int *ny_CT,
+    int *slice_CT,
+    double *IOM_CT,
+    double *image_b_PT, double *image_t_PT,
+    double *returnMatrix ) {
+  
+  struct _c_data *punt;
+  struct pointInSpace pis;
+  struct pointInSpace *p_pis_b_PT;
+  struct pointInSpace *p_pis_t_PT;
+  int ct, nx, ny;
+  struct DICOM_OrientationMatrix IOM_b_PT_STR, IOM_t_PT_STR, IOM_CT_STR;
+  int dimensioniPET,dimensioniCT;
+  double valoreCalcolato;
+  
+  dimensioniPET = (*ny_PT)*(*nx_PT);
+  dimensioniCT = (*ny_CT)*(*nx_CT);
+  
+  return;
+  
+  //Copia le IOM nelle apposite strutture dati
+  IOM_b_PT_STR.a11 = IOM_b_PT[0]; IOM_b_PT_STR.a21 = IOM_b_PT[1]; IOM_b_PT_STR.a31 = IOM_b_PT[2];
+  IOM_b_PT_STR.a12 = IOM_b_PT[4]; IOM_b_PT_STR.a22 = IOM_b_PT[5]; IOM_b_PT_STR.a32 = IOM_b_PT[6];
+  IOM_b_PT_STR.Sx = IOM_b_PT[12]; IOM_b_PT_STR.Sy = IOM_b_PT[13]; IOM_b_PT_STR.Sz = IOM_b_PT[14];    
+  IOM_t_PT_STR.a11 = IOM_t_PT[0]; IOM_t_PT_STR.a21 = IOM_t_PT[1]; IOM_t_PT_STR.a31 = IOM_t_PT[2];
+  IOM_t_PT_STR.a12 = IOM_t_PT[4]; IOM_t_PT_STR.a22 = IOM_t_PT[5]; IOM_t_PT_STR.a32 = IOM_t_PT[6];
+  IOM_t_PT_STR.Sx = IOM_t_PT[12]; IOM_t_PT_STR.Sy = IOM_t_PT[13]; IOM_t_PT_STR.Sz = IOM_t_PT[14];    
+  IOM_CT_STR.a11 = IOM_CT[0]; IOM_CT_STR.a21 = IOM_CT[1]; IOM_CT_STR.a31 = IOM_CT[2];
+  IOM_CT_STR.a12 = IOM_CT[4]; IOM_CT_STR.a22 = IOM_CT[5]; IOM_CT_STR.a32 = IOM_CT[6];
+  IOM_CT_STR.Sx = IOM_CT[12]; IOM_CT_STR.Sy = IOM_CT[13]; IOM_CT_STR.Sz = IOM_CT[14];    
+  
+  // Alloca un puntatore alla struttura _c_data
+  punt = (struct _c_data *)calloc(1,sizeof(struct _c_data));  if( punt == NULL ) return;  
+  // Pulisci la matrice di destinazione
+  for(int ct = 0; ct < ( (*nx_CT )*(*ny_CT) - 1 ); ct++ ) returnMatrix[ ct ] = 0;  
+  
+  p_pis_b_PT = (struct pointInSpace *)calloc( dimensioniPET, sizeof(struct pointInSpace) );  if( p_pis_b_PT == NULL ) return;
+  p_pis_t_PT = (struct pointInSpace *)calloc( dimensioniPET, sizeof(struct pointInSpace) );  if( p_pis_t_PT == NULL ) return;    
+
+  // calcola i punti <x,y,z> per tutti i punti delle slice PET e CT
+  for( ny=0; ny < *ny_PT; ny++ ) {    
+    for( nx=0, ct=0; nx < *nx_PT; nx++, ct++ ) {      
+      p_pis_b_PT[ ct ] = get3DPosFromNxNy( nx,  ny, IOM_b_PT_STR );
+      p_pis_t_PT[ ct ] = get3DPosFromNxNy( nx,  ny, IOM_t_PT_STR );    
+    }  
+  }
+  
+  // ora scorri sulle CT (i punti da calcolare)  
+  struct pointInSpace NxNy_b, NxNy_t, TDxyz_b,TDxyz_bnext,TDxyz_t;
+  for( ny=0; ny < *ny_CT; ny++ ) {    
+    printf("\ny = %d",ny);
+    for( nx=0; nx < *nx_CT; nx++ ) {      
+      pis = get3DPosFromNxNy( nx,  ny, IOM_CT_STR );
+
+      NxNy_b = getNxNyPos3D( pis.x, pis.y, pis.z, IOM_b_PT_STR );
+      NxNy_t = getNxNyPos3D( pis.x, pis.y, pis.z, IOM_t_PT_STR );
+
+      TDxyz_b = get3DPosFromNxNy(  NxNy_b.x, NxNy_b.y, IOM_b_PT_STR);
+      TDxyz_t = get3DPosFromNxNy(  NxNy_t.x, NxNy_t.y, IOM_t_PT_STR);
+      return;
+      TDxyz_bnext = get3DPosFromNxNy(  NxNy_b.x+1, NxNy_b.y+1, IOM_b_PT_STR);
+      return;
+      printf("\n ");
+      printf("\n TDxyz_b.x=%lf, TDxyz_b.y=%lf, TDxyz_b.z=%lf", TDxyz_b.x, TDxyz_b.y, TDxyz_b.z);
+      printf("\n TDxyz_t.x=%lf, TDxyz_t.y=%lf, TDxyz_t.z=%lf", TDxyz_t.x, TDxyz_t.y, TDxyz_t.z);
+      printf("\n dx1x0=%lf, dy1y0=%lf, dz1z0=%lf", abs(TDxyz_bnext.x - TDxyz_b.x),abs(TDxyz_bnext.y - TDxyz_b.y),abs(TDxyz_t.z - TDxyz_b.z) );
+      printf("\n x=%lf, y=%lf, z=%lf", pis.x, pis.y, pis.z );
+      
+      valoreCalcolato = _c_TrilinearInterpolation(
+        image_b_PT[ (int)floor(NxNy_b.y) * (*nx_PT) + (int)floor(NxNy_b.x) ],  //x0y0z0 (sample value)
+        image_t_PT[ (int)floor(NxNy_b.y) * (*nx_PT) + (int)floor(NxNy_b.x) ],  //x0y0z1 (sample value)
+        image_b_PT[ (int)floor(NxNy_t.y) * (*nx_PT) + (int)floor(NxNy_b.x) ],  //x0y1z0 (sample value)
+        image_t_PT[ (int)floor(NxNy_b.y) * (*nx_PT) + (int)floor(NxNy_b.x) ],  //x0y1z1 (sample value)                  
+        image_b_PT[ (int)floor(NxNy_b.y) * (*nx_PT) + (int)floor(NxNy_t.x) ],  //x1y0z0 (sample value)
+        image_t_PT[ (int)floor(NxNy_b.y) * (*nx_PT) + (int)floor(NxNy_t.x) ],  //x1y0z1 (sample value)
+        image_b_PT[ (int)floor(NxNy_t.y) * (*nx_PT) + (int)floor(NxNy_t.x) ],  //x1y1z0 (sample value)                  
+        image_t_PT[ (int)floor(NxNy_t.y) * (*nx_PT) + (int)floor(NxNy_t.x) ],  //x1y1z1 (sample value)                  
+        TDxyz_b.x, //x0,
+        TDxyz_b.y, //y0,
+        TDxyz_b.z, //z0,
+        abs(TDxyz_bnext.x - TDxyz_b.x), //dx1x0,
+        abs(TDxyz_bnext.y - TDxyz_b.y), //dy1y0,
+        abs(TDxyz_t.z - TDxyz_b.z), //dz1z0,
+        pis.x,pis.y,pis.z
+      );
+      exit(0);
+    }
+    exit(0);
+  }
+  
+
 }
