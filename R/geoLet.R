@@ -1277,9 +1277,27 @@ geoLet<-function() {
     
     CT.VC <- getImageVoxelCube(SeriesInstanceUID = CT.SIUID )
     PT.VC <- getImageVoxelCube(SeriesInstanceUID = PT.SIUID )    
+
+    maxCT <- max( dim(CT.VC) ); maxPT <- max( dim(PT.VC) )
+    mis.x.CT <- length( maxCT - dim(CT.VC)[1] )
+    mis.y.CT <- length( maxCT - dim(CT.VC)[2] )
+    mis.z.CT <- length( maxCT - dim(CT.VC)[3] )
     
+    CT.x <- matrix(unlist(lapply( 1:dim(CT.VC)[1], function(x) {get3DPosFromNxNy(Nx = x,Ny = 1,Nz = 1,SeriesInstanceUID = CT.SIUID ) } )),ncol=3,byrow = T)[,1]
+    PT.x <- matrix(unlist(lapply( 1:dim(PT.VC)[1], function(x) {get3DPosFromNxNy(Nx = x,Ny = 1,Nz = 1,SeriesInstanceUID = PT.SIUID ) } )),ncol=3,byrow = T)[,1]
+    CT.y <- matrix(unlist(lapply( 1:dim(CT.VC)[2], function(x) {get3DPosFromNxNy(Nx = 1,Ny = x,Nz = 1,SeriesInstanceUID = CT.SIUID ) } )),ncol=3,byrow = T)[,2]
+    PT.y <- matrix(unlist(lapply( 1:dim(PT.VC)[2], function(x) {get3DPosFromNxNy(Nx = 1,Ny = x,Nz = 1,SeriesInstanceUID = PT.SIUID ) } )),ncol=3,byrow = T)[,2]
     CT.z <- matrix(unlist(lapply( 1:dim(CT.VC)[3], function(x) {get3DPosFromNxNy(Nx = 1,Ny = 1,Nz = x,SeriesInstanceUID = CT.SIUID ) } )),ncol=3,byrow = T)[,3]
     PT.z <- matrix(unlist(lapply( 1:dim(PT.VC)[3], function(x) {get3DPosFromNxNy(Nx = 1,Ny = 1,Nz = x,SeriesInstanceUID = PT.SIUID ) } )),ncol=3,byrow = T)[,3]
+
+    browser()
+    # allunga la z
+    delta.z <- CT.z[2]-CT.z[1]
+    CT.z <- c(CT.z,seq(maxCT - length(CT.z)) * delta.z + CT.z[ length(CT.z) ]) 
+    new.CT.VC[  ] <- CT.VC[  ]
+    
+    
+    browser()
     
     zRiferimento <- CT.z[slice]
     slice.b <- which(unlist(lapply( 1:(length(PT.z)-1), function(x) {  sign((PT.z[x]-zRiferimento)*(PT.z[x+1]-zRiferimento)) } ))==-1)
