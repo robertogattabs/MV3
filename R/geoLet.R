@@ -906,7 +906,7 @@ geoLet<-function() {
     if( slot(aaa,"scl_inter") != 0 ) logObj$sendLog(  "In the NIFTI file, 'intercept' is not 1" ,"ERR" );
     # https://brainder.org/2012/09/23/the-nifti-file-format/  
     if(slot(aaa,"qform_code") != 1 ) logObj$sendLog(  "In the NIFTI file, 'qform_code' is not 1" ,"ERR" );
-    if(slot(aaa,"sform_code") != 1 ) logObj$sendLog(  "In the NIFTI file, 'sform_code' is not 1" ,"ERR" );
+    # if(slot(aaa,"sform_code") != 1 ) logObj$sendLog(  "In the NIFTI file, 'sform_code' is not 1" ,"ERR" );
     if(slot(aaa,"slice_code") != 0 ) logObj$sendLog(  "In the NIFTI file, 'slice_code' is not 0" ,"ERR" );
     
     dim.x <- slot(aaa,"dim_")[2];    dim.y <- slot(aaa,"dim_")[3];    dim.z <- slot(aaa,"dim_")[4]
@@ -1186,6 +1186,9 @@ geoLet<-function() {
 
     Rows <- dim(dataStorage$img[[SeriesInstanceUID]][[1]])[1]
     Columns <- dim(dataStorage$img[[SeriesInstanceUID]][[1]])[2]
+    Rows <- dim(dataStorage$img[[SeriesInstanceUID]][[1]])[2]
+    Columns <- dim(dataStorage$img[[SeriesInstanceUID]][[1]])[1]
+    
     Slices <- length(which(SOPClassUIDList[ ,"SeriesInstanceUID"]==SeriesInstanceUID))
 
     cubone<-array(data = 0,dim = c(Columns,Rows,Slices))
