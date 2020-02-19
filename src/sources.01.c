@@ -412,6 +412,107 @@ void MeshVolume(double *X, double *Y, double *Z, int *numT, int *V1, int *V2, in
   *Volume = fabs(*Volume * (double)(1.0/6.0));  // absolute value of a double
 }
 
+
+void c_getInterpolatedSlice2D(
+    int *Nx, int *Ny, double *deltaZ, double *zRelativePosition,
+    int *NxOut, int *NyOut,
+    double *x, double *y,
+    double *xOut, double *yOut,
+    double *ff,
+    double *ft,
+    double *res
+) {
+  
+  double deltaX, deltaY;
+  double f000,f010,f100,f110,f001,f011,f101,f111,festx_0,festx_1,meanVal;
+  double xPos, yPos;
+  int Xcurs, Ycurs;
+  int intXcurs, intYcurs;
+  int lny,lnx;
+  double valoreCalcolato;
+
+  deltaX = x[1]-x[0];  deltaY = y[1]-y[0];
+  
+  for( lny = 0; lny < *NyOut; lny++ ) {    
+    for( lnx = 0; lnx < *NxOut; lnx++ ) {      
+      xPos = xOut[lnx]; yPos = yOut[lny];
+      Xcurs = (xPos - x[0]) / deltaX;  Ycurs = (yPos - y[0]) / deltaY;
+      intXcurs = floor(Xcurs); intYcurs = floor(Ycurs);
+      // se cade in un range ragionevole
+      if( intXcurs > 0 & (intXcurs+1) < *Nx & intYcurs > 0 & (intYcurs+1) < *Ny ) {
+        f000 = ff[  intYcurs * (*Nx) + intXcurs ];
+        f100 = ff[  intYcurs * (*Nx) + (intXcurs+1) ];
+        f010 = ff[  (intYcurs+1) * (*Nx) + intXcurs ];
+        f110 = ff[  (intYcurs+1) * (*Nx) + (intXcurs+1) ];
+        f001 = ft[  intYcurs * (*Nx) + intXcurs ];
+        f101 = ft[  intYcurs * (*Nx) + (intXcurs+1) ];
+        f011 = ft[  (intYcurs+1) * (*Nx) + intXcurs ];
+        f111 = ft[  (intYcurs+1) * (*Nx) + (intXcurs+1) ];
+        
+        
+        valoreCalcolato = _c_TrilinearInterpolation(
+          f000,  //x0y0z0 (sample value)
+          f001,  //x0y0z1 (sample value)
+          f010,  //x0y1z0 (sample value)
+          f011,  //x0y1z1 (sample value)
+          f100,  //x1y0z0 (sample value)
+          f101,  //x1y0z1 (sample value)
+          f110,  //x1y1z0 (sample value)
+          f111,  //x1y1z1 (sample value)
+          0, //x0
+          0, //y0,
+          0, //z0,
+          deltaX, //dx1x0,
+          deltaY, //dy1y0,
+          *deltaZ, //dz1z0,
+          xPos-x[intXcurs], yPos-y[intYcurs], *zRelativePosition);        
+
+          res[ lny * (*NxOut) + lnx ] = valoreCalcolato;
+      }
+    }
+  }
+}
+
+        
+void toDelete_c_getInterpolatedSlice2D(
+    int *Nx, int *Ny,
+    int *NxOut, int *NyOut,
+    double *x, double *y,
+    double *xOut, double *yOut,
+    double *f,
+    double *res
+) {
+  
+  double deltaX, deltaY;
+  double f00,f01,f10,f11,festx_0,festx_1,meanVal;
+  double xPos, yPos;
+  int Xcurs, Ycurs;
+  int intXcurs, intYcurs;
+  int lny,lnx;
+  
+  deltaX = x[1]-x[0];  deltaY = y[1]-y[0];
+  
+  for( lny = 0; lny < *NyOut; lny++ ) {    
+    printf("\n y = %d",lny);
+    for( lnx = 0; lnx < *NxOut; lnx++ ) {      
+      xPos = xOut[lnx]; yPos = yOut[lny];
+      Xcurs = (xPos - x[0]) / deltaX;  Ycurs = (yPos - y[0]) / deltaY;
+      intXcurs = ceil(Xcurs); intYcurs = ceil(Ycurs);
+      printf("\n x = %d",lnx);
+      // se cade in un range ragionevole
+      if( intXcurs > 0 & (intXcurs+1) < *Nx & intYcurs > 0 & (intYcurs+1) < *Ny ) {
+        f00 = f[  intYcurs * (*Nx) + intXcurs ];
+        f01 = f[  intYcurs * (*Nx) + (intXcurs+1) ];
+        f10 = f[  (intYcurs+1) * (*Nx) + intXcurs ];
+        f11 = f[  (intYcurs+1) * (*Nx) + (intXcurs+1) ];
+        festx_0 = ((f01-f00)/deltaX) * (xPos-x[intXcurs]) + f00;
+        festx_1 = ((f11-f10)/deltaX) * (xPos-x[intXcurs]) + f10;
+        res[ lny * (*NxOut) + lnx ] = ((festx_0-festx_1)/deltaY) * (yPos-y[intYcurs]) + festx_1;
+      }
+    }
+  }
+}
+
 void c_getInterpolatedSlice(
     int *nx_PT, int *ny_PT,
     int *slice_b_PT, int *slice_t_PT,

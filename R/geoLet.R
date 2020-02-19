@@ -42,7 +42,7 @@ geoLet<-function() {
     # ----------------------------------------------
     # get the dcm file type
     # ----------------------------------------------
-    if( internalAttributes$verbose == TRUE ) cat("\n Dir scouting:\n ")
+    if( internalAttributes$verbose == TRUE ) cat("\n Dir scouting:")
     SOPClassUIDList<<-getFolderContent( pathToOpen );
 
     # ----------------------------------------------
@@ -413,7 +413,7 @@ geoLet<-function() {
           substr( fileNameWithPath, nchar( fileNameWithPath ) - (str_length(internalAttributes$defaultExtension.nifti)-1),nchar(fileNameWithPath))!=internalAttributes$defaultExtension.nifti
           ) {
 
-        if( internalAttributes$verbose == TRUE ) cat(".")
+        # if( internalAttributes$verbose == TRUE ) cat(".")
 
         riga <- nrow(MMatrix) + 1
         MMatrix <- rbind(MMatrix, rep("",ncol(MMatrix))  )
@@ -1273,7 +1273,9 @@ geoLet<-function() {
   # ===============================================================
   # getInterpolatedSlice
   # ===============================================================
-  getInterpolatedSlice<-function( SIUID.pty , SIUID.ref , slice  ) {
+  getInterpolatedSlice<-function( SIUID.pty , SIUID.ref , n.slice = NA , z.slice = NA  ) {
+    
+    if( is.na(n.slice) & is.na(z.slice) ) stop(" n.slice OR z.slice should have a value")
     
     CT.SIUID <- SIUID.pty
     PT.SIUID <- SIUID.ref
@@ -1293,45 +1295,38 @@ geoLet<-function() {
     CT.z <- matrix(unlist(lapply( 1:dim(CT.VC)[3], function(x) {get3DPosFromNxNy(Nx = 1,Ny = 1,Nz = x,SeriesInstanceUID = CT.SIUID ) } )),ncol=3,byrow = T)[,3]
     PT.z <- matrix(unlist(lapply( 1:dim(PT.VC)[3], function(x) {get3DPosFromNxNy(Nx = 1,Ny = 1,Nz = x,SeriesInstanceUID = PT.SIUID ) } )),ncol=3,byrow = T)[,3]
 
-    browser()
-    # allunga la z
+    if(!is.na(n.slice))   posizione.PT.from <- between( CT.z[n.slice], PT.z )
+    if(!is.na(z.slice))   posizione.PT.from <- between( z.slice, PT.z )
+    posizione.PT.to <- posizione.PT.from + 1
     delta.z <- CT.z[2]-CT.z[1]
-    CT.z <- c(CT.z,seq(maxCT - length(CT.z)) * delta.z + CT.z[ length(CT.z) ]) 
-    new.CT.VC[  ] <- CT.VC[  ]
-    
-    
-    browser()
-    
-    zRiferimento <- CT.z[slice]
-    slice.b <- which(unlist(lapply( 1:(length(PT.z)-1), function(x) {  sign((PT.z[x]-zRiferimento)*(PT.z[x+1]-zRiferimento)) } ))==-1)
-    slice.t <- slice.b + 1
-    
-    SOPInstanceUID.b.PT <- SOPClassUIDList[which(SOPClassUIDList[,"SeriesInstanceUID"] == PT.SIUID & SOPClassUIDList[,"ImageOrder"] == slice.b),"SOPInstanceUID"]
-    SOPInstanceUID.t.PT <- SOPClassUIDList[which(SOPClassUIDList[,"SeriesInstanceUID"] == PT.SIUID & SOPClassUIDList[,"ImageOrder"] == slice.t),"SOPInstanceUID"]
-    SOPInstanceUID.CT <- SOPClassUIDList[which(SOPClassUIDList[,"SeriesInstanceUID"] == CT.SIUID & SOPClassUIDList[,"ImageOrder"] == slice.t),"SOPInstanceUID"]
-    
-    IOM.b.PT <- array(dataStorage$info[[PT.SIUID]][[SOPInstanceUID.b.PT]]$orientationMatrix)
-    IOM.t.PT <- array(dataStorage$info[[PT.SIUID]][[SOPInstanceUID.t.PT]]$orientationMatrix)
-    IOM.CT <- array(dataStorage$info[[CT.SIUID]][[SOPInstanceUID.CT]]$orientationMatrix)    
-    nx.PT <- dim( PT.VC )[1]; ny.PT <- dim( PT.VC )[2];
-    nx.CT <- dim( CT.VC )[1]; ny.CT <- dim( CT.VC )[2];
-    slice.b.PT <- slice.b; slice.t.PT <- slice.t
-    slice.CT <- slice
-    image.b.PT <- PT.VC[,,slice.b]; image.t.PT <- PT.VC[,,slice.t];
-    result <- CT.VC[,,slice] * 0 
-    
-    browser()
-    # 
-    # library(moddicomV3)
-    # ooo <- geoLet()
-    # ooo$openDICOMFolder(pathToOpen = "/home/localadmin/sharedFolder/GEDiscovery690/")
-    # 
-    # ooo$getInterpolatedSlice(SIUID.pty = ooo$get.CT.SeriesInstanceUID(),SIUID.ref = ooo$get.PET.SeriesInstanceUID(), slice = 300 )
-    # 
-    # 
+    if(!is.na(n.slice)) zRelativePosition <- CT.z[n.slice]-PT.z[posizione.PT.from]
+    if(!is.na(z.slice)) zRelativePosition <- z.slice-PT.z[posizione.PT.from]
+    # CT.z <- c(CT.z,seq(maxCT - length(CT.z)) * delta.z + CT.z[ length(CT.z) ]) 
 
+    minVal <- min(PT.VC)-1000
+    res <- CT.VC[,,1]
+    res[1:dim(res)[1],1:dim(res)[2]] <- minVal
+
+    aaa <- .C("c_getInterpolatedSlice2D",
+            as.integer(length(PT.x)), as.integer(length(PT.y)), as.double(delta.z), as.double(zRelativePosition),
+            as.integer(length(CT.x)), as.integer(length(CT.y)),
+            as.double(PT.x), as.double(PT.y),
+            as.double(CT.x), as.double(CT.y),
+            as.double(as.array(PT.VC[,,posizione.PT.from])),
+            as.double(as.array(PT.VC[,,posizione.PT.to])),
+            as.double(as.array(res)), as.double(minVal) );
+    
+    
+    res <- matrix(aaa[13][[1]],nrow=dim(CT.VC)[1])
     return( res )
   }    
+  # ===============================================================
+  # between
+  # ===============================================================
+  between <- function(value, arr) {
+    position <- unlist(lapply( 1:(length(arr - value)-1), function(x){  if( (arr - value)[x]*(arr - value)[x+1]<0  ) return(x) } ))
+    return(position)
+  }  
   # ===============================================================
   # getInterpolatedSlice
   # ===============================================================
