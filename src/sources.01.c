@@ -512,7 +512,7 @@ void toDelete_c_getInterpolatedSlice2D(
     }
   }
 }
-
+/*
 void c_getInterpolatedSlice(
     int *nx_PT, int *ny_PT,
     int *slice_b_PT, int *slice_t_PT,
@@ -609,3 +609,4 @@ void c_getInterpolatedSlice(
   
 
 }
+ */
