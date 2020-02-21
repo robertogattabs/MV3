@@ -1320,6 +1320,22 @@ geoLet<-function() {
     res <- matrix(aaa[13][[1]],nrow=dim(CT.VC)[1])
     return( res )
   }    
+  #=================================================================================
+  # getTag
+  #=================================================================================    
+  getTag<-function(tag=tag, fileName=NA, whichFile='first', SeriesInstanceUID = NA) {   
+    
+    if(is.na(SeriesInstanceUID) & is.na(fileName)) {
+      SeriesInstanceUID <- giveBackImageSeriesInstanceUID()
+      if( length(SeriesInstanceUID) > 1) stop("Too many SeriesIntanceUID have been found: which one?")
+    }
+      
+      
+    if(!is.na(fileName)) return(getDICOMTag(tag = tag , fileName = fileName) )
+    
+    fileName <- SOPClassUIDList[ SOPClassUIDList[,"SeriesInstanceUID"]==SeriesInstanceUID,"fileName"][1]
+    return(getDICOMTag(tag = tag , fileName = fileName) )
+  }  
   # ===============================================================
   # between
   # ===============================================================
@@ -1424,7 +1440,8 @@ geoLet<-function() {
     "get.MRI.SeriesInstanceUID"=get.MRI.SeriesInstanceUID,
     "get.PET.SeriesInstanceUID"=get.PET.SeriesInstanceUID,
     "get3DPosFromNxNy"=get3DPosFromNxNy,
-    "getInterpolatedSlice"=getInterpolatedSlice
+    "getInterpolatedSlice"=getInterpolatedSlice,
+    "getTag"=getTag
     ))
 }
 # # -im
