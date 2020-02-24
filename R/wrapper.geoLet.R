@@ -282,3 +282,33 @@ geo.showROIs <-  function( objGeoLet, arr.ROInames, rows = 3, cols = 3 , grey.sc
     }
   } 
 }
+
+#' retrurn a DICOM tag
+#'
+#' @description  give back the value of the specified DICOM tag. The returned tag depends on the nature of the tag, so pay attention to the many options (e.g. a PatientId can be retrieved from any images of a series, are all equals, on the other hand, slice tichkness can change withing the serie)
+#' @param obj.geoLet a \code{geoLet} obj
+#' @param arr.ROInames an arrax containing the ROIs you wanto to plot
+#' @param tag hte DICOM in the DICOM format. Most common tags are for example '0010,0010','0010,0020' (PatientId and Patient Name respectively).
+#' @param fileName the name of the DICOM file you want to get the value of the tag. If it is not specified, the first file of the serie is considered. In more than one serie is available, the SeriesInstanceUID needs to be specified, in order to retrieve the name of the first file to use.
+#' @param SeriesInstanceUID in case the fileName is missing and there are more than one serie, the SeriesInstanceUID is mandator< 
+#' @export
+#' @examples \dontrun{
+#' 
+#' # instantiate two geoLet() objects
+#' 
+#' library(moddicomV3)
+#' ooo <- geoLet()
+#' 
+#' # load the series
+#' 
+#' geo.openDICOMFolder(obj.geoLet = ooo,pathToOpen =  "/home/localadmin/sharedFolder/GEDiscovery690/")
+#' 
+#' # plot two ROIs (the former from a DICOM, the latter from a NIFTI)
+#' 
+#' getTag(objGeoLet = ooo,tag = "0010,0010", fileName="./test.dcm")
+#' }
+geo.getTag<-function(objGeoLet , tag , fileName=NA, SeriesInstanceUID = NA) {   
+  tagValue <- objGeoLet$getTag(tag = tag, fileName = fileName, SeriesInstanceUID = SeriesInstanceUID)
+  return( tagValue )
+}
+
