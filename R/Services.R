@@ -188,6 +188,18 @@ services<-function() {
     }
     return(newHI)
   }
+  # ========================================================================================
+  # getSOPClassUIDsTable
+  # ========================================================================================  
+  getSOPClassUIDsTable <- function() {
+    SOPClassUIDs <- c(
+      "0008,0016"="ComprehensiveSRStorage",
+      "0008,0016"="CTImageStorage"
+    )
+    return( SOPClassUIDs )    
+  } 
+  
+
 
   return( list(
     "get3DPosFromNxNy"=get3DPosFromNxNy,
@@ -202,7 +214,8 @@ services<-function() {
     "triangle2mesh"=triangle2mesh,
     "StructureVolume"=StructureVolume,
     "StructureSurface"=StructureSurface,
-    "get.HOT_IRON"=get.HOT_IRON
+    "get.HOT_IRON"=get.HOT_IRON,
+    "getSOPClassUIDsTable"=getSOPClassUIDsTable
   ))
 }
 
