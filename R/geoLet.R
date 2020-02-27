@@ -817,6 +817,7 @@ geoLet<-function() {
   # restituisce la lista delle ROI
   #=================================================================================
   getROIList<-function() {
+    if( length(dataStorage$structures) == 0 ) return( c() )
     mat2Ret<-matrix( c(seq(1,length(names(dataStorage$structures))),names(dataStorage$structures)),nrow=2 ,byrow=T )
     return(mat2Ret[2,])
   }

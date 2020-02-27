@@ -23,16 +23,17 @@ scout <- function( ) {
     # MM <- cbind(MM , rep("" ,nrow(MM))  )
     # colnames(MM) <- c(colnames( res$MM ),c("PatientID","StudyDescription","SeriesDescription","BodyPartExamined","ImageOrientationPatient","SeriesDate","CorrectedImage"))
     
-    colonne.da.aggiungere <- c("PatientID","StudyDescription","SeriesDescription","BodyPartExamined","ImageOrientationPatient","SeriesDate","CorrectedImage","Radiopharmaceutical","Units")
+    colonne.da.aggiungere <- c("PatientID","StudyDescription","SeriesDescription","BodyPartExamined","ImageOrientationPatient","SeriesDate","ConvolutionKernel","CorrectedImage","Radiopharmaceutical","Units")
     for( i in 1:length(colonne.da.aggiungere)) {MM <- cbind(MM , rep("" ,nrow(MM))  )}
     colnames(MM) <- c(colnames( res$MM ),colonne.da.aggiungere)
 
     for( riga in rownames( MM ) ) {
       cat("\n", riga )
       extractFurtherInfo <- FALSE
-      if( "CTImageStorage" %in% colnames(MM) ) {  if(MM[riga,"CTImageStorage"]>0) extractFurtherInfo <- TRUE  }
-      if( "MRImageStorage" %in% colnames(MM) ) {  if(MM[riga,"MRImageStorage"]>0) extractFurtherInfo <- TRUE  }
-      if( "PositronEmissionTomographyImageStorage" %in% colnames(MM) ) {  if(MM[riga,"PositronEmissionTomographyImageStorage"]>0) {extractFurtherInfo <- TRUE  } }
+      isa.CT <- FALSE; isa.MRI<- FALSE; isa.PET <- FALSE;
+      if( "CTImageStorage" %in% colnames(MM) ) {  if(MM[riga,"CTImageStorage"]>0) {extractFurtherInfo <- TRUE ; isa.CT <- TRUE} }
+      if( "MRImageStorage" %in% colnames(MM) ) {  if(MM[riga,"MRImageStorage"]>0) {extractFurtherInfo <- TRUE ; isa.MRI <- TRUE} }
+      if( "PositronEmissionTomographyImageStorage" %in% colnames(MM) ) {  if(MM[riga,"PositronEmissionTomographyImageStorage"]>0) {extractFurtherInfo <- TRUE ; isa.PET <- TRUE } }
 
       if(extractFurtherInfo == TRUE ) {
         PatientID <- getTagOntheFly(fileName = paste( c(riga,"//",list.files(riga)[1]),collapse='')  ,tag = "0010,0020")[1]
@@ -41,9 +42,19 @@ scout <- function( ) {
         BodyPartExamined <- getTagOntheFly(fileName = paste( c(riga,"//",list.files(riga)[1]),collapse='')  ,tag = "0018,0015")[1]
         ImageOrientationPatient <- getTagOntheFly(fileName = paste( c(riga,"//",list.files(riga)[1]),collapse='')  ,tag = "0020,0037")[1]
         SeriesDate <- getTagOntheFly(fileName = paste( c(riga,"//",list.files(riga)[1]),collapse='')  ,tag = "0008,0021")[1]
-        CorrectedImage <- getTagOntheFly(fileName = paste( c(riga,"//",list.files(riga)[1]),collapse='')  ,tag = "0028,0051")[1]
-        Radiopharmaceutical  <- getTagOntheFly(fileName = paste( c(riga,"//",list.files(riga)[1]),collapse='')  ,tag = "0018,0031")[1]
-        Units  <- getTagOntheFly(fileName = paste( c(riga,"//",list.files(riga)[1]),collapse='')  ,tag = "0054,1001")[1]
+        if( isa.PET ) {
+          CorrectedImage <- getTagOntheFly(fileName = paste( c(riga,"//",list.files(riga)[1]),collapse='')  ,tag = "0028,0051")[1]
+          Radiopharmaceutical  <- getTagOntheFly(fileName = paste( c(riga,"//",list.files(riga)[1]),collapse='')  ,tag = "0018,0031")[1]
+          Units  <- getTagOntheFly(fileName = paste( c(riga,"//",list.files(riga)[1]),collapse='')  ,tag = "0054,1001")[1]
+        } else {
+          CorrectedImage <- "";  Radiopharmaceutical  <- "";  Units  <- ""
+        }
+        if( isa.CT ) { 
+          ConvolutionKernel  <- getTagOntheFly(fileName = paste( c(riga,"//",list.files(riga)[1]),collapse='')  ,tag = "0018,1210")[1] 
+        } else {
+          ConvolutionKernel <- ""
+        }
+        
         
         if( !(length(PatientID)>0)) PatientID<-"NA"
         if( !(length(StudyDescription)>0)) StudyDescription<-""
@@ -54,6 +65,7 @@ scout <- function( ) {
         if( !(length(CorrectedImage)>0)) CorrectedImage<-""
         if( !(length(Radiopharmaceutical)>0)) Radiopharmaceutical<-""
         if( !(length(Units)>0)) Units<-""
+        if( !(length(ConvolutionKernel)>0)) Units<-""
         
         MM[riga,"PatientID"] <- PatientID
         MM[riga,"SeriesDate"] <- SeriesDate
@@ -64,6 +76,7 @@ scout <- function( ) {
         MM[riga,"CorrectedImage"] <- CorrectedImage
         MM[riga,"Radiopharmaceutical"] <- Radiopharmaceutical
         MM[riga,"Units"] <- Units
+        MM[riga,"ConvolutionKernel"] <- ConvolutionKernel
       }
     }
     return(MM)
