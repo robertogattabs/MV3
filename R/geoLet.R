@@ -118,7 +118,7 @@ geoLet<-function() {
     } else {
       TMP[[ explicitRTStructFileName ]]<-getStructuresFromXML( explicitRTStructFileName );
     }
-
+# browser()
     # now let me use some more easy to handle variable names
     matrice2<-c(); matrice3<-c(); FORUID.m<-NA;
     for(i in names(TMP)) {
@@ -204,7 +204,7 @@ geoLet<-function() {
     massimo<-0
     folderCleanUp <- internalAttributes$attr_folderCleanUp
     arr.SeriesInstanceUID <- giveBackImageSeriesInstanceUID()
-
+# browser()
     # Load the XML file if not in cache
     doc <- obj.S$getXMLStructureFromDICOMFile( fileName = fileName, folderCleanUp = folderCleanUp )
 
@@ -248,6 +248,7 @@ geoLet<-function() {
     for(i in n2XML) {
       ROINumber<-xpathApply(xmlDoc(i),'/item/element[@tag="3006,0022"]',xmlValue)[[1]]
       ROIName<-xpathApply(xmlDoc(i),'/item/element[@tag="3006,0026"]',xmlValue)[[1]]
+      if( str_trim(ROIName) == "" ) ROIName <- ROINumber
       matrice2<-rbind(matrice2,c(ROINumber,ROIName))
     }
 
@@ -410,6 +411,7 @@ geoLet<-function() {
       # if( substr(fileNameWithPath,nchar(fileNameWithPath)-3,nchar(fileNameWithPath))=='.dcm' ) {
       if( substr( fileNameWithPath, nchar( fileNameWithPath ) - 3,nchar(fileNameWithPath))!='.xml' &
           substr( fileNameWithPath, nchar( fileNameWithPath ) - 3,nchar(fileNameWithPath))!='.raw' &
+          substr( fileNameWithPath, nchar( fileNameWithPath ) - 3,nchar(fileNameWithPath))!='.txt' &
           substr( fileNameWithPath, nchar( fileNameWithPath ) - (str_length(internalAttributes$defaultExtension.nifti)-1),nchar(fileNameWithPath))!=internalAttributes$defaultExtension.nifti
           ) {
 
