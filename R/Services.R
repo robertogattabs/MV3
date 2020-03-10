@@ -89,7 +89,18 @@ services<-function() {
     valore<-valore[[1]]
     return(valore);
   }
-
+  # ===============================================================
+  # setDICOMTag
+  # ===============================================================
+  setDICOMTag<-function(tag, value, fileName ) {
+    obj.S<-services();
+    if(!file.exists(fileName)) stop(" the file does not exist")
+    stringa1<-"dcmodify";
+    stringa2<-paste(c(" -nb -m  '",tag,"'='",value,"' ",fileName),collapse='')
+    options(warn=-1)
+    system2(stringa1,stringa2,stdout=NULL)
+    options(warn=0)
+  }
   # ===============================================================
   # splittaTAG
   # ===============================================================
@@ -220,14 +231,34 @@ services<-function() {
     )
     return( SOPClassUIDs )    
   } 
-
-
+  # ========================================================================================
+  # getSOPClassUIDsTable
+  # ========================================================================================  
+  anonymizeFolder <- function( folderPath ) {
+    ooo <- geoLet()
+    ooo$openDICOMFolder(pathToOpen = folderPath)
+    
+    arr.DICOMFiles <- ooo$getFilesInfo()[,"fileName"]
+    
+    cat("\n now anonymizing")
+    for( fileName in arr.DICOMFiles) {
+      cat("\n\t anonymizing: ",fileName)
+      setDICOMTag(tag = "0010,0010",value = "xxx",fileName = fileName)
+      setDICOMTag(tag = "0010,0020",value = "xxx",fileName = fileName)  
+      setDICOMTag(tag = "0010,0030",value = "xxx",fileName = fileName)  
+      setDICOMTag(tag = "0010,1010",value = "xxx",fileName = fileName)  
+    }
+    rm(ooo)
+    gc()
+  }
+  
   return( list(
     "get3DPosFromNxNy"=get3DPosFromNxNy,
     "getPlaneEquationBetween3Points"=getPlaneEquationBetween3Points,
     "getPointPlaneDistance"=getPointPlaneDistance,
     "getXMLStructureFromDICOMFile" = getXMLStructureFromDICOMFile,
     "getDICOMTag"=getDICOMTag,
+    "setDICOMTag"=setDICOMTag,
     "splittaTAG"=splittaTAG,
     "new.trilinearInterpolator"=new.trilinearInterpolator,
     "rotateMatrix"=rotateMatrix,
@@ -237,7 +268,8 @@ services<-function() {
     "StructureSurface"=StructureSurface,
     "get.HOT_IRON"=get.HOT_IRON,
     "getSOPClassUIDsTable"=getSOPClassUIDsTable,
-    "erosion.2D"=erosion.2D
+    "erosion.2D"=erosion.2D,
+    "anonymizeFolder"=anonymizeFolder
   ))
 }
 
