@@ -40,6 +40,15 @@ struct _c_data{
   int xInf,xSup,yInf,ySup,zInf,zSup;
 };
 
+/*
+ * Function to calculate the index position of an array which refers to a 3D matrix
+ * x,y,z are the coors of the matrix you are interested in 
+ * nx,ny,nz  are the dimensions of the matrix along the 3 axes
+ *
+ */
+int posDecod(int x, int y, int z, int nx, int ny, int nz) {
+  return( z*ny*nx+ y*nx + x   );
+}
 
 //
 // _c_getCubeVertex
@@ -193,6 +202,7 @@ struct pointInSpace get3DPosFromNxNy(int Nx, int Ny, struct DICOM_OrientationMat
 /*
  * Function for calculating the <Nx,Ny> coords of a voxel into the space
  */
+/*
 struct pointInSpace getNxNyPos3D( double Px, double Py, double Pz, struct DICOM_OrientationMatrix DOM) {
   struct pointInSpace pis;
   double Xx,  Xy, Xz,  Yx, Yy, Yz, Sx, Sy, Sz;
@@ -202,7 +212,7 @@ struct pointInSpace getNxNyPos3D( double Px, double Py, double Pz, struct DICOM_
   pis.x = Xz * (Px-Sx) - Xx*(Pz-Sz) /  (Xz*Yx - Yz*Xx );
   pis.y = Yx * (Py-Sy) - Yy*(Px-Sx) /  (Yx*Xy - Yy*Xx );
   return pis;
-}
+}*/
 
 
 /*
@@ -424,7 +434,7 @@ void c_getInterpolatedSlice2D(
 ) {
   
   double deltaX, deltaY;
-  double f000,f010,f100,f110,f001,f011,f101,f111,festx_0,festx_1,meanVal;
+  double f000,f010,f100,f110,f001,f011,f101,f111;
   double xPos, yPos;
   int Xcurs, Ycurs;
   int intXcurs, intYcurs;
@@ -439,7 +449,7 @@ void c_getInterpolatedSlice2D(
       Xcurs = (xPos - x[0]) / deltaX;  Ycurs = (yPos - y[0]) / deltaY;
       intXcurs = floor(Xcurs); intYcurs = floor(Ycurs);
       // se cade in un range ragionevole
-      if( intXcurs > 0 & (intXcurs+1) < *Nx & intYcurs > 0 & (intYcurs+1) < *Ny ) {
+      if( (intXcurs > 0) & ((intXcurs+1) < *Nx) & (intYcurs > 0) & ((intYcurs+1) < *Ny) ) {
         f000 = ff[  intYcurs * (*Nx) + intXcurs ];
         f100 = ff[  intYcurs * (*Nx) + (intXcurs+1) ];
         f010 = ff[  (intYcurs+1) * (*Nx) + intXcurs ];
@@ -484,7 +494,7 @@ void toDelete_c_getInterpolatedSlice2D(
 ) {
   
   double deltaX, deltaY;
-  double f00,f01,f10,f11,festx_0,festx_1,meanVal;
+  double f00,f01,f10,f11,festx_0,festx_1;
   double xPos, yPos;
   int Xcurs, Ycurs;
   int intXcurs, intYcurs;
@@ -500,7 +510,7 @@ void toDelete_c_getInterpolatedSlice2D(
       intXcurs = ceil(Xcurs); intYcurs = ceil(Ycurs);
       printf("\n x = %d",lnx);
       // se cade in un range ragionevole
-      if( intXcurs > 0 & (intXcurs+1) < *Nx & intYcurs > 0 & (intYcurs+1) < *Ny ) {
+      if( (intXcurs > 0) & ((intXcurs+1) < *Nx) & (intYcurs > 0) & ((intYcurs+1) < *Ny) ) {
         f00 = f[  intYcurs * (*Nx) + intXcurs ];
         f01 = f[  intYcurs * (*Nx) + (intXcurs+1) ];
         f10 = f[  (intYcurs+1) * (*Nx) + intXcurs ];
@@ -512,6 +522,65 @@ void toDelete_c_getInterpolatedSlice2D(
     }
   }
 }
+
+/*
+ *  Algorithm for eroding margins in voxelcube structures
+ *  cube : a pointer to the array of the cube structure
+ *  nX,nY,nZ : dimensions of the cube
+ *  mx,my,mz : erosion along the three axis
+ *  iterator : must be set to '0', it is used to check the deep of the iteration tree.
+ *  minValue : which is the minimum value that should be considered 'water' *  
+ */
+void erosion( double *cube, 
+              int *nX, int *nY, int *nZ, 
+              int *mx, int *my, int *mz, 
+              int *iterator, int *minValue) {
+  int x,y,z,center,ct;
+  if( *iterator >= 10) return;  // just to avoid infinite loops
+  if(*mx == 0 && *my ==0 && *mz ==0 ) return;
+  
+  
+  // loop per ogni elemento del cubo
+  for( z=0; z<*nZ; z++ ) {
+    for( y=0; y<*nY; y++ ) {
+      for( x=0; x<*nX; x++) {
+        // prendi l'offset relativo al punto in esame
+        center = posDecod(x,y,z,*nX,*nY,*nZ);
+        // se != 0 vediamo l'intorno
+        if(cube[center]>(*minValue+1)) {
+          if( *mx>0 ){
+            //if(x==0 || x==*nX) cube[center]=-1;
+            if(x==0 || x>=(*nX-1)) cube[center]=-1;
+            else if( cube[posDecod(x-1,y,z,*nX,*nY,*nZ)]<(*minValue+1) || cube[posDecod(x+1,y,z,*nX,*nY,*nZ)]<(*minValue+1)  ) cube[center]=-1;
+          }
+          if( *my>0 ){
+            // if(y==0 || y==*nY) cube[center]=-1;
+            if(y==0 || y==(*nY-1)) cube[center]=-1;
+            else if( cube[posDecod(x,y-1,z,*nX,*nY,*nZ)]<(*minValue+1) || cube[posDecod(x,y+1,z,*nX,*nY,*nZ)]<(*minValue+1)  ) cube[center]=-1;
+          }        
+          if( *mz>0 ){
+            // if(z==0 || z==*nZ) cube[center]=-1;
+            if(z==0 || z==(*nZ-1)) cube[center]=-1;
+            else if( cube[posDecod(x,y,z-1,*nX,*nY,*nZ)]<(*minValue+1) || cube[posDecod(x,y,z+1,*nX,*nY,*nZ)]<(*minValue+1)  )  cube[center]=-1;
+          }
+        }
+      }
+    }
+  }
+  // decrementa i vincoli sui margini
+  if( *mx>0 ) *mx = *mx - 1;
+  if( *my>0 ) *my = *my - 1;  
+  if( *mz>0 ) *mz = *mz - 1;
+  // trasforma tutti i '-1' in '0' per l'iterazione successiva
+  //for(ct=0; ct<= posDecod((*nX-1),(*nY-1),(*nZ-1),*nX,*nY,*nZ); ct++) {
+  for(ct=0; ct<= ((*nX)*(*nY)*(*nZ)-1); ct++) {
+    if(cube[ct]==-1) cube[ct]=(*minValue);
+  }
+  // rilancia ricorsivamente
+  *iterator = *iterator + 1;
+  erosion( cube, nX, nY, nZ, mx, my, mz, iterator, minValue );
+}
+
 /*
 void c_getInterpolatedSlice(
     int *nx_PT, int *ny_PT,

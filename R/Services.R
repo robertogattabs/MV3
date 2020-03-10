@@ -137,6 +137,28 @@ services<-function() {
     return( list ( "voxelCube"=newCube, "location"=location) )
   }
   # ========================================================================================
+  # applyErosion.2D: crop a voxel cube in order to limit its dimension to the needs
+  # ========================================================================================
+  erosion.2D<-function(  imageSlice, margin.x=1, margin.y=1 ) {
+    erodedVoxelCube<- imageSlice
+    nX<-dim(erodedVoxelCube)[1];    nY<-dim(erodedVoxelCube)[2];
+    mx<-margin.x; my<-margin.y;
+    iterator<-0; # this is just to avoid infinite loops...
+    
+    # erode it!
+    minValue<-min(erodedVoxelCube[which(!is.na(erodedVoxelCube),arr.ind = T)])-100;
+    erodedVoxelCube[which(is.na(erodedVoxelCube),arr.ind = T)]<-minValue
+    
+    aa<-.C("erosion",as.double(erodedVoxelCube), as.integer(nX), as.integer(nY),
+           as.integer(1),as.integer(margin.x),as.integer(margin.y),
+           as.integer(0), as.integer(iterator), as.integer(minValue))
+    
+    erodedVoxelCube<-array(aa[[1]], dim=c(nX,nY))
+    erodedVoxelCube[which(erodedVoxelCube==minValue,arr.ind = T)]<-NA
+    return(erodedVoxelCube)
+  }
+  
+  # ========================================================================================
   # triangle2mesh
   # ========================================================================================  
   triangle2mesh <- function(x) {
@@ -198,7 +220,6 @@ services<-function() {
     )
     return( SOPClassUIDs )    
   } 
-  
 
 
   return( list(
@@ -215,7 +236,8 @@ services<-function() {
     "StructureVolume"=StructureVolume,
     "StructureSurface"=StructureSurface,
     "get.HOT_IRON"=get.HOT_IRON,
-    "getSOPClassUIDsTable"=getSOPClassUIDsTable
+    "getSOPClassUIDsTable"=getSOPClassUIDsTable,
+    "erosion.2D"=erosion.2D
   ))
 }
 
