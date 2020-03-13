@@ -140,12 +140,30 @@ services<-function() {
   # ========================================================================================
   cropCube<-function( bigCube ) {
     matPos<-which(bigCube!=0,arr.ind = T)
+
     min.x<-min(matPos[,1]);     max.x<-max(matPos[,1])
     min.y<-min(matPos[,2]);     max.y<-max(matPos[,2])
     min.z<-min(matPos[,3]);     max.z<-max(matPos[,3])
     newCube<-bigCube[ min.x:max.x, min.y:max.y , min.z:max.z]
     location<-list( "min.x"=min.x, "max.x"=max.x, "min.y"=min.y, "max.y"=max.y, "min.z"=min.z, "max.z"=max.z  )
     return( list ( "voxelCube"=newCube, "location"=location) )
+  }
+  # ========================================================================================
+  # expandCroppedCube: expand a cropped cube
+  # ========================================================================================
+  expandCroppedCube<-function( croppedCube, toDim, def.val.for.expanded.space = NA) {
+    min.x <- croppedCube$info$location$min.x
+    min.y <- croppedCube$info$location$min.y
+    min.z <- croppedCube$info$location$min.z
+    max.x <- croppedCube$info$location$max.x
+    max.y <- croppedCube$info$location$max.y
+    max.z <- croppedCube$info$location$max.z
+
+    littleCube <- croppedCube$voxelCube
+    bigCube <- array( def.val.for.expanded.space, dim = toDim )
+    bigCube[ min.x:max.x,  min.y:max.y, min.z:max.z ] <- littleCube
+
+    return( bigCube )
   }
   # ========================================================================================
   # applyErosion.2D: crop a voxel cube in order to limit its dimension to the needs
@@ -168,7 +186,24 @@ services<-function() {
     erodedVoxelCube[which(erodedVoxelCube==minValue,arr.ind = T)]<-NA
     return(erodedVoxelCube)
   }
-  
+  # ========================================================================================
+  # applyErosion.2D: crop a voxel cube in order to limit its dimension to the needs
+  # ========================================================================================
+  PointInPolygon.Axial.2D<-function( axialImg, xVertex, yVertex   ) {
+    aa<-.C("bidimentionalFlatPointInPolygon",
+           as.integer(dim(axialImg)[1]), as.integer(dim(axialImg)),
+           as.integer(1),as.integer(margin.x),as.integer(margin.y),
+           as.integer(0), as.integer(iterator), as.integer(minValue))
+    
+    erodedVoxelCube<-array(aa[[1]], dim=c(nX,nY))
+    erodedVoxelCube[which(erodedVoxelCube==minValue,arr.ind = T)]<-NA
+    return(erodedVoxelCube)
+  } 
+  # int *nX, int *nY,
+  # int *numVertex,
+  # double *xVertex, 
+  # double *yVertex,
+  # int *PIPvector 
   # ========================================================================================
   # triangle2mesh
   # ========================================================================================  
@@ -245,8 +280,8 @@ services<-function() {
       cat("\n\t anonymizing: ",fileName)
       setDICOMTag(tag = "0010,0010",value = "xxx",fileName = fileName)
       setDICOMTag(tag = "0010,0020",value = "xxx",fileName = fileName)  
-      setDICOMTag(tag = "0010,0030",value = "xxx",fileName = fileName)  
-      setDICOMTag(tag = "0010,1010",value = "xxx",fileName = fileName)  
+      setDICOMTag(tag = "0010,0030",value = "19211212",fileName = fileName)  
+      setDICOMTag(tag = "0010,1010",value = "075Y",fileName = fileName)  
     }
     rm(ooo)
     gc()
@@ -263,6 +298,7 @@ services<-function() {
     "new.trilinearInterpolator"=new.trilinearInterpolator,
     "rotateMatrix"=rotateMatrix,
     "cropCube"=cropCube,
+    "expandCroppedCube"=expandCroppedCube,
     "triangle2mesh"=triangle2mesh,
     "StructureVolume"=StructureVolume,
     "StructureSurface"=StructureSurface,

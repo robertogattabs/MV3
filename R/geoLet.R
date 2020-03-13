@@ -1053,7 +1053,7 @@ geoLet<-function() {
 
       # se questa slice risulta associata ad una ROI, allora calcola l'eventuale punto nel poligono
       if ( tmpSOPIUID %in% tabellaAssociazioni[,"ReferencedSOPInstanceUID"] ) {
-
+        # if( n >= 306) browser()
         # Calcola la DOM di quella SLICE
         DOM <- dataStorage$info[[SeriesInstanceUID]][[tmpSOPIUID]]$orientationMatrix[c(1:3,5:7,13:15)]
         if(all(new.pixelSpacing==old.ps)==FALSE) {
@@ -1108,16 +1108,22 @@ geoLet<-function() {
           punti.interni <- which(in.out(ROI,points2Test))
           
           # filtra risultato sui soli punti che ha senso scorrere per costruire la maschera di '1'
-          risultato <- risultato[righe.valide,][punti.interni,]
+          # if( n >= 193) browser()
+          # cat("\n N=",n)
+          if( length(righe.valide) > 1 & length(punti.interni) > 1) {
+            risultato <- risultato[righe.valide,][punti.interni,]
+            # posiziona gli '1' della maschera (sempre che il count dei punti sopra sia > 0)
+            if( length(risultato) > 0 ) {
+              tmp <- apply( risultato[,c(5,6)], MARGIN = 1, function(x){ image.arr[ x[1], x[2], n ] <<- 1} )  
+            }
+          }
 
-          # posiziona gli '1' della maschera
-          tmp <- apply( risultato[,c(5,6)], MARGIN = 1, function(x){ image.arr[ x[1], x[2], n ] <<- 1} )
 
         }
       } 
       pb$tick()
     }
-
+    # browser()
     # ROIVoxelCube <- VC[,,] * image.arr[,dim(image.arr)[2]:1,]
     ROIVoxelCube <- getImageVoxelCube( SeriesInstanceUID = SeriesInstanceUID)
     ROIVoxelCube[which( image.arr[,dim(image.arr)[2]:1,] == 0, arr.ind = T)] <- NA

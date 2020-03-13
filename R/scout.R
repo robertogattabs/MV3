@@ -9,19 +9,19 @@ scout <- function( ) {
   
   openDICOMFolder <- function( pathToOpen , recursive = TRUE ) {
 
-    # res <- build.preMM( pathToOpen = pathToOpen , recursive = recursive )
+    res <- build.preMM( pathToOpen = pathToOpen , recursive = recursive )
     
     # browser()
-    load("/projects/moddicom/MV3/res.RData")
+    # load("/projects/moddicom/MV3/res.RData")
     
     MM <- res$MM
-    # MM <- cbind(MM , rep("" ,nrow(MM))  )
-    # MM <- cbind(MM , rep("" ,nrow(MM))  )
-    # MM <- cbind(MM , rep("" ,nrow(MM))  )
-    # MM <- cbind(MM , rep("" ,nrow(MM))  )
-    # MM <- cbind(MM , rep("" ,nrow(MM))  )
-    # MM <- cbind(MM , rep("" ,nrow(MM))  )
-    # colnames(MM) <- c(colnames( res$MM ),c("PatientID","StudyDescription","SeriesDescription","BodyPartExamined","ImageOrientationPatient","SeriesDate","CorrectedImage"))
+    MM <- cbind(MM , rep("" ,nrow(MM))  )
+    MM <- cbind(MM , rep("" ,nrow(MM))  )
+    MM <- cbind(MM , rep("" ,nrow(MM))  )
+    MM <- cbind(MM , rep("" ,nrow(MM))  )
+    MM <- cbind(MM , rep("" ,nrow(MM))  )
+    MM <- cbind(MM , rep("" ,nrow(MM))  )
+    colnames(MM) <- c(colnames( res$MM ),c("PatientID","StudyDescription","SeriesDescription","BodyPartExamined","ImageOrientationPatient","SeriesDate","CorrectedImage"))
     
     colonne.da.aggiungere <- c("PatientID","StudyDescription","SeriesDescription","BodyPartExamined","ImageOrientationPatient","SeriesDate","ConvolutionKernel","CorrectedImage","Radiopharmaceutical","Units")
     for( i in 1:length(colonne.da.aggiungere)) {MM <- cbind(MM , rep("" ,nrow(MM))  )}
@@ -29,6 +29,7 @@ scout <- function( ) {
 
     for( riga in rownames( MM ) ) {
       cat("\n", riga )
+
       extractFurtherInfo <- FALSE
       isa.CT <- FALSE; isa.MRI<- FALSE; isa.PET <- FALSE;
       if( "CTImageStorage" %in% colnames(MM) ) {  if(MM[riga,"CTImageStorage"]>0) {extractFurtherInfo <- TRUE ; isa.CT <- TRUE} }
@@ -104,33 +105,38 @@ scout <- function( ) {
         for( fileName in arr.files) {
           is.error <- FALSE
           cat("\n\t ",fileName)
+          # browser()
           
-          # if( fileName=="/projects/moddicom/MV3/img.testing.unit//test.01/axial.01.MRI/GUESS.nii.gz") browser()
-          
-          options(warn=-1)
-          stringa <- fileName
-          resul <- suppressWarnings(system2(comando,stringa,stdout = TRUE,stderr = TRUE))
-          if(substr(resul[1],1, str_length("E: ")) == "E: " | substr(resul[1],1, str_length("W: ")) == "W: " ) {
-            is.error <- TRUE
-          }
-          options(warn=-0)
-          
-          if( is.error == FALSE ){
-            posizione <- which(unlist(lapply(str_locate_all(string = resul,pattern = "(0008,0016)"),length))>0)
-            kindOfValue <- str_trim(str_replace_all(resul[posizione],"\\(0008,0016\\) UI =",""))
-            if( length(kindOfValue) > 1 ) kindOfValue <- kindOfValue[1]
-            kindOfValue <- str_trim(substr(x = kindOfValue, start = 1, stop = str_locate(string = kindOfValue,pattern = "#")-1))
+          # if( fileName == "/media/localadmin/DATA/images/melanoma.ready/391871/20160823_CTPET//PI.1.2.840.113619.2.290.1771779647.1471957497.90225.xml") browser()
+          extension <- substr(fileName,str_length(fileName)-4,str_length(fileName))
+          if( extension != ".xml" & extension != ".raw" & extension != ".txt" & extension != ".doc" & extension != ".xls" ) {
+            options(warn=-1)
+            stringa <- fileName
+            resul <- suppressWarnings(system2(comando,stringa,stdout = TRUE,stderr = TRUE))
+            if(substr(resul[1],1, str_length("E: ")) == "E: " | substr(resul[1],1, str_length("W: ")) == "W: " ) {
+              is.error <- TRUE
+            }
+            options(warn=-0)
             
+            if( is.error == FALSE ){
+              posizione <- which(unlist(lapply(str_locate_all(string = resul,pattern = "(0008,0016)"),length))>0)
+              kindOfValue <- str_trim(str_replace_all(resul[posizione],"\\(0008,0016\\) UI =",""))
+              if( length(kindOfValue) > 1 ) kindOfValue <- kindOfValue[1]
+              kindOfValue <- str_trim(substr(x = kindOfValue, start = 1, stop = str_locate(string = kindOfValue,pattern = "#")-1))
+              
+              
+              if( !( kindOfValue %in% names(lst.res[[ folder ]])) ) lst.res[[ folder ]][[ kindOfValue ]] <- 0
+              lst.res[[ folder ]][[ kindOfValue ]] <- lst.res[[ folder ]][[ kindOfValue ]] + 1          
+              
+              counter <- counter + 1
+            }            
             
-            if( !( kindOfValue %in% names(lst.res[[ folder ]])) ) lst.res[[ folder ]][[ kindOfValue ]] <- 0
-            lst.res[[ folder ]][[ kindOfValue ]] <- lst.res[[ folder ]][[ kindOfValue ]] + 1          
-            
-            counter <- counter + 1
           }
         }
         if( internalAttributes$verbose == TRUE ) pb$tick()
       }
     }
+    # browser()
     # prendi la lista delle SOPClassUIDs
     arr.SOPClassUIDS <- unique(unlist(lapply( 1:length(lst.res), function(x){  unlist(lapply(  names(lst.res[x]), function( y ) { return(   paste(c("SOPUID.",names(lst.res[x][[y]])),collapse = '')  )} ))       }  )))
     MM <- matrix(0,ncol=length(arr.SOPClassUIDS)+1, nrow=length(names(lst.res)))

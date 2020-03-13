@@ -483,7 +483,29 @@ void c_getInterpolatedSlice2D(
   }
 }
 
-        
+
+
+/*
+ *  Algorithm for Point In Polygon on a flat 2D plane
+ */
+void bidimentionalFlatPointInPolygon (
+                     int *nX, int *nY,
+                     int *numVertex,
+                     double *xVertex, 
+                     double *yVertex,
+                     int *PIPvector 
+) {
+  int x,y,c;
+  for ( y = 0; y < *nY; y++ ) {    // loop through X axis
+    for ( x = 0; x < *nX; x++ ) {
+      c = isThePointInsideThePoly(*numVertex , xVertex , yVertex, x, y , 0 , 0);
+      if( c == 1 )   {
+        PIPvector[ x + y * (*nX)] = !PIPvector[ x + y * (*nX)];
+      }
+    }
+  }
+}
+   /*     
 void toDelete_c_getInterpolatedSlice2D(
     int *Nx, int *Ny,
     int *NxOut, int *NyOut,
@@ -522,6 +544,7 @@ void toDelete_c_getInterpolatedSlice2D(
     }
   }
 }
+*/
 
 /*
  *  Algorithm for eroding margins in voxelcube structures
