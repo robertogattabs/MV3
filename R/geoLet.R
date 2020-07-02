@@ -20,11 +20,12 @@
 #' @useDynLib moddicomV3
 #' @import stringr XML oro.nifti progress
 #' @importFrom mgcv in.out
-geoLet<-function() {
+geoLet<-function( use.ROICache = TRUE ) {
 
   # global variables
   internalAttributes<-list()                             # Attributes
   cacheArea <- list()                                    # Cache
+  use.cacheArea <- TRUE                                  # do you have to use the cache?
   logObj<-logHandler()                                   # log/error handler Object
   dataStorage<-list()                                    # memory data structure
   SOPClassUIDList<-c()
@@ -537,7 +538,7 @@ geoLet<-function() {
 
       # Se non era ancora stato settato, setta il FrameOfReferenceUID di riferimento
       if(is.na(internalAttributes$attr_mainFrameOfReferenceUID)) internalAttributes$attr_mainFrameOfReferenceUID <<- FrameOfReferenceUID
-
+cat("\n\t",FrameOfReferenceUID)
       # Verifica che il FORUID sia compatibile con quello caricato (se no, dai errore)
       if( FrameOfReferenceUID != internalAttributes$attr_mainFrameOfReferenceUID ) stop("FORUID differente!")
 
@@ -626,7 +627,7 @@ geoLet<-function() {
     # get the image data
     immagine<-getDICOMTag(tag = "7fe0,0010", fileName = fileName);
     SOPClassUID <- SOPClassUIDList[ SOPClassUIDList[,"fileName"]==fileName, "kind"]
-
+    # browser()
     # apply rescaleSlope and rescaleIntercept, if needed
     rescale.intercept<-as.numeric(getDICOMTag(fileName = fileName,tag ="0028,1052" )); # rescale Intercept
     rescale.slope<-as.numeric(getDICOMTag(fileName = fileName,tag ="0028,1053" )); # rescale Slope
@@ -639,6 +640,7 @@ geoLet<-function() {
     immagine <- objServ$rotateMatrix( immagine, rotations = 1 )
 
     if( SOPClassUID == "PositronEmissionTomographyImageStorage" ) {
+      # browser()
       res <- calculate.SUVCoefficient.BW( fileName = fileName)
       SUVCoefficient.BW <- res$SUVCoefficient.BW
       immagine <- SUVCoefficient.BW * immagine
@@ -649,7 +651,7 @@ geoLet<-function() {
         fields[[ campo ]] <- res$fields[[ campo ]]
       }
     }
-
+    # browser()
     fields$rescale.intercept <- rescale.intercept
     fields$rescale.slope <- rescale.slope
     fields$rescale.type <- rescale.type
@@ -662,6 +664,7 @@ geoLet<-function() {
   # Calcola il coefficiente moltiplicativo per il SUV
   #=================================================================================
   calculate.SUVCoefficient.BW<-function( fileName ) {
+    # browser()
     fields <- list()
     AcquisitionTime<-getDICOMTag(fileName = fileName,tag ="0008,0032" );
     RadiopharmaceuticalStartTime<-getDICOMTag(fileName = fileName,tag ="0018,1072" );
@@ -705,12 +708,14 @@ geoLet<-function() {
   #=================================================================================
   getImageFromRAW<-function(fileName) {
 
+    # browser()
+    
     objSV<-services()
     fileNameRAW<-paste(fileName,".0.raw")
     fileNameRAW<-str_replace_all(string = fileNameRAW , pattern = " .0.raw",replacement = ".0.raw")
-
+    
     if(!file.exists(fileName)) logObj$sendLog( " the fileName is missing in geoLet::getImageFromRAW()", "ERR"  );
-
+    # browser()
     pathToStore<-substr(fileName,1,tail(which(strsplit(fileName, '')[[1]]=='/'),1)-1)
     if(!file.exists( fileNameRAW )  | internalAttributes$attr_folderCleanUp==TRUE) {
       stringa1<-"dcmdump";
@@ -723,10 +728,13 @@ geoLet<-function() {
       stringa2<-paste(" +W  ",pathToStore,fileNameFS,collapse='')
       options(warn=-1)
       stringone<-as.character(paste( c(stringa1," ",stringa2),collapse=''))
-
+      
       # gestisci le system call in maniera diversa in funzione che sia WINDOWS o LINUX
       if ( Sys.info()["sysname"] == "Windows") {
-        res<-.C("executeCMDLine",  as.character(stringone), as.integer(str_length(stringone))  )
+        stringa2 <- chartr("/","\\",stringa2)
+        stringa2 <- chartr("'",'"',stringa2)
+        system2(stringa1,stringa2,stdout=NULL)
+        # res<-.C("executeCMDLine",  as.character(stringone), as.integer(str_length(stringone))  )
       }
       else {
         system2(stringa1,stringa2,stdout=NULL)
@@ -737,11 +745,12 @@ geoLet<-function() {
     columnsDICOM<-as.numeric(getDICOMTag(fileName = fileName,tag = '0028,0011'))
     bitsAllocated<-as.numeric(getDICOMTag(fileName = fileName,tag = '0028,0100'))
     SOPClassUID <- SOPClassUIDList[ SOPClassUIDList[,"fileName"]==fileName, "kind"]
-
+    # browser()
     if( SOPClassUID != "RTDoseStorage" ) {
       if(bitsAllocated!=16)
         logObj$sendLog( "16bit pixel are allowed only for non-RTDoseStorage", "ERR"  );
       if ( Sys.info()["sysname"] == "Windows") {
+        # browser()
         fileNameRAWFS<-chartr("\\","/",fileNameRAW);
         fileNameRAWFS<-chartr("/","\\\\",fileNameRAWFS);
       }
@@ -1011,7 +1020,7 @@ geoLet<-function() {
     # se esiste gia' in cache, usa quanto gia' c'e'
     # browser()
     if( "ROI" %in% names(cacheArea)) {
-      if( Structure %in% names(cacheArea[["ROI"]]) ) {
+      if( Structure %in% names(cacheArea[["ROI"]]) & use.cacheArea == TRUE ) {
         if ( cacheArea[["ROI"]][[Structure]]$SeriesInstanceUID == SeriesInstanceUID & length(new.pixelSpacing)==0 ) {
           return( cacheArea[["ROI"]][[Structure]]$voxelCube  )
         }
@@ -1129,7 +1138,8 @@ geoLet<-function() {
     ROIVoxelCube[which( image.arr[,dim(image.arr)[2]:1,] == 0, arr.ind = T)] <- NA
 
     # aggiorna la cache
-    if(  length(new.pixelSpacing)==0 ) {
+    # browser()
+    if(  length(new.pixelSpacing)==0 & use.cacheArea == TRUE) {
       cacheArea[["ROI"]][[Structure]] <<- list()
       cacheArea[["ROI"]][[Structure]]$SeriesInstanceUID <<- SeriesInstanceUID
       if(length(new.pixelSpacing)>0)  cacheArea[["ROI"]][[Structure]]$pixelSpacing <<- new.pixelSpacing
@@ -1402,7 +1412,7 @@ geoLet<-function() {
   #=================================================================================
   # Constructor
   #=================================================================================
-  constructor<-function( ) {
+  constructor<-function( use.ROICache  ) {
 
     # Attributes - set by user
     internalAttributes$maxDistanceForImageROICoupling<<-0.2
@@ -1433,9 +1443,9 @@ geoLet<-function() {
     SOPClassUIDList <<- list()
     global_tableROIPointList<<-c()
     cacheArea <<- list( "ROI" = list() )
-
+    use.cacheArea <<- use.ROICache
   }
-  constructor( )
+  constructor( use.ROICache = use.ROICache)
   return( list(
     "openDICOMFolder"=openDICOMFolder,
     "setAttribute"=setAttribute,

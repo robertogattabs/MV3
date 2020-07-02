@@ -49,12 +49,22 @@ services<-function() {
     # se file con estensione xml gia' esiste nella cartella non fare nulla altrimenti lo aggiunge
     if(!file.exists( fileNameXML ) | folderCleanUp==TRUE) {
       stringa1<-"dcm2xml";
-      p.fileNameXML <- paste( c("'",fileNameXML,"'") ,collapse = '')
-      p.fileName <- paste( c("'",fileName,"'") ,collapse = '')
-      stringa2<-paste(" +M  ",p.fileName,p.fileNameXML,collapse='')
-      options(warn=-1)
-      system2(stringa1,stringa2,stdout=NULL)
-      options(warn=0)
+      if ( Sys.info()["sysname"] == "Windows") {
+        options(warn=-1)
+        # browser()
+        p.fileNameXML <- paste( c('"',fileNameXML,'"') ,collapse = '')
+        p.fileName <- paste( c('"',fileName,'"') ,collapse = '')
+        stringa2<-paste(" +M  ",p.fileName,p.fileNameXML,collapse='')
+        system2(stringa1,stringa2,stdout=NULL)
+        options(warn=0)        
+      } else {
+        p.fileNameXML <- paste( c("'",fileNameXML,"'") ,collapse = '')
+        p.fileName <- paste( c("'",fileName,"'") ,collapse = '')
+        stringa2<-paste(" +M  ",p.fileName,p.fileNameXML,collapse='')
+        options(warn=-1)
+        system2(stringa1,stringa2,stdout=NULL)
+        options(warn=0)        
+      }
     }
     # Load the XML file: restituisce il file xml nella variabile doc
     doc = xmlInternalTreeParse(fileNameXML)

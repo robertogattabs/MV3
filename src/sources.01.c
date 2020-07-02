@@ -604,6 +604,16 @@ void erosion( double *cube,
   erosion( cube, nX, nY, nZ, mx, my, mz, iterator, minValue );
 }
 
+
+/*
+void executeCMDLine( char **stringa, int *strLength ) {
+  int i;
+  for( i = 0; i< (*strLength) ; i++ ) {
+    if( stringa[0][i] == '/' ) stringa[0][i] = '\\';
+  }
+  int res = system( stringa[0] );
+}*/
+
 /*
 void c_getInterpolatedSlice(
     int *nx_PT, int *ny_PT,
