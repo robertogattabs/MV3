@@ -1,3 +1,8 @@
+#' morphological  features
+#'
+#' @description  Extract the morphological features
+#' @param imgObj a 3D matrix
+#' @export
 morphologicalFeatures <- function(imgObj,px,py,pz){
   
   if( length(dim(imgObj)) == 2 ) {

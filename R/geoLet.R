@@ -1114,6 +1114,7 @@ cat("\n\t",FrameOfReferenceUID)
           }
           
           # Ora fai il point-in-polygon
+          # browser()
           punti.interni <- which(in.out(ROI,points2Test))
           
           # filtra risultato sui soli punti che ha senso scorrere per costruire la maschera di '1'

@@ -1,3 +1,10 @@
+#' statistical features
+#'
+#' @description  Extract the statistical features
+#' @param imgObj a 3D matrix
+#' @import entropy
+#' @export
+
 statisticalFeatures <- function(imgObj){ 
   
   nVoxel <- dim(imgObj)[1]*dim(imgObj)[2]*dim(imgObj)[3] - sum(is.na(imgObj))
