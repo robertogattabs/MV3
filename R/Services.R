@@ -296,6 +296,26 @@ services<-function() {
     rm(ooo)
     gc()
   }
+  binarize <- function(VC , from , to, reverse = FALSE ) {
+    BVC <- VC
+    BVC <- BVC * 0
+    if(reverse == FALSE ) {
+      BVC[ which( VC>=from & VC<=to) ] <- 1
+      BVC[ which( VC<from | VC>to) ] <- 0
+      
+    } else {
+      BVC[ which( VC>=from & VC<=to) ] <- 0
+      BVC[ which( VC<from | VC>to) ] <- 1
+    }
+    return(BVC)
+  }
+  Skeletonize <- function( VC ,  binarization.window=c(300,1000) )  {
+    bau <- VC
+    bau <- binarize(bau, binarization.window[1], binarization.window[2]) * bau
+    matrice.1 <- apply(  bau  , c(1,3), sd );  matrice.2 <- apply(  bau  , c(1,3), mean );   matrice <- (matrice.2 * 2 - matrice.1)
+    cippa <-  binarize(matrice, -0.05, -0.03 ,reverse = TRUE) * matrice
+    return(cippa)
+  }
   
   return( list(
     "get3DPosFromNxNy"=get3DPosFromNxNy,
@@ -315,7 +335,9 @@ services<-function() {
     "get.HOT_IRON"=get.HOT_IRON,
     "getSOPClassUIDsTable"=getSOPClassUIDsTable,
     "erosion.2D"=erosion.2D,
-    "anonymizeFolder"=anonymizeFolder
+    "anonymizeFolder"=anonymizeFolder,
+    "binarize"=binarize,
+    "Skeletonize"=Skeletonize
   ))
 }
 

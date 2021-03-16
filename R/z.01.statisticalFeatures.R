@@ -2,7 +2,7 @@
 #'
 #' @description  Extract the statistical features
 #' @param imgObj a 3D matrix
-#' @import entropy
+#' @import entropy e1071
 #' @export
 
 statisticalFeatures <- function(imgObj){ 

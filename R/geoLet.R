@@ -1184,7 +1184,7 @@ cat("\n\t",FrameOfReferenceUID)
       SeriesInstanceUID <- giveBackImageSeriesInstanceUID()
       if( length(SeriesInstanceUID) > 1) stop("Too many SeriesIntanceUID have been found: which one?")
     }    
-    
+    # browser()
     SOPInstanceUID <- as.character(SOPClassUIDList[ SOPClassUIDList[ ,"SeriesInstanceUID"]==SeriesInstanceUID & SOPClassUIDList[ ,"type"]=="IMG" & SOPClassUIDList[ ,"ImageOrder"]== Nz, "SOPInstanceUID"])
     oppa <- services()
     OM <- dataStorage$info[[ SeriesInstanceUID ]][[SOPInstanceUID]]$orientationMatrix
@@ -1410,6 +1410,9 @@ cat("\n\t",FrameOfReferenceUID)
             as.double(result) );
     return( res )
   }   
+  getDataStorage  <- function() {
+    return(dataStorage)
+  }
   #=================================================================================
   # Constructor
   #=================================================================================
@@ -1461,7 +1464,8 @@ cat("\n\t",FrameOfReferenceUID)
     "get.PET.SeriesInstanceUID"=get.PET.SeriesInstanceUID,
     "get3DPosFromNxNy"=get3DPosFromNxNy,
     "getInterpolatedSlice"=getInterpolatedSlice,
-    "getTag"=getTag
+    "getTag"=getTag,
+    "getDataStorage"=getDataStorage
     ))
 }
 # # -im
