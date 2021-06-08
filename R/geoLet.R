@@ -593,8 +593,10 @@ cat("\n\t",FrameOfReferenceUID)
         deltaT <- SingleSliceLoader$fields$deltaT
 
         if(is.na(rescale.type)) rescale.type <- UM
+        # browser()
         if( UM != rescale.type) {  logObj$sendLog(  "in PET image the rescale slope/intercept have different UM than the one used in the image (0054,1001) vs (0028,1054)" , "ERR"  )  }
-        if(CountsSource!='EMISSION' | DecayCorrection!='START') { logObj$sendLog(  c("\n ERROR: CountsSource!='EMISSION' or DecayCorrection!='START' ! This modality is not yet supported") , "ERR")  }
+        # if(CountsSource!='EMISSION' | DecayCorrection!='START') { logObj$sendLog(  c("\n ERROR: CountsSource!='EMISSION' or DecayCorrection!='START' ! This modality is not yet supported") , "ERR")  }
+        if( DecayCorrection!='START') { logObj$sendLog(  c("\n ERROR: CountsSource!='EMISSION' or DecayCorrection!='START' ! This modality is not yet supported") , "ERR")  }
         if(is.na(deltaT) | is.null(deltaT) | deltaT==0) {  logObj$sendLog( "\n Error: deltaT between RadiopharmaceuticalStartTime and AcquisitionTime seems to be invalid" , "ERR" )  }
       }
 
@@ -744,6 +746,7 @@ cat("\n\t",FrameOfReferenceUID)
     rowsDICOM<-as.numeric(getDICOMTag(fileName = fileName,tag = '0028,0010'))
     columnsDICOM<-as.numeric(getDICOMTag(fileName = fileName,tag = '0028,0011'))
     bitsAllocated<-as.numeric(getDICOMTag(fileName = fileName,tag = '0028,0100'))
+    pixelRepresentation<-as.numeric(getDICOMTag(fileName = fileName,tag = '0028,0100'))
     SOPClassUID <- SOPClassUIDList[ SOPClassUIDList[,"fileName"]==fileName, "kind"]
     # browser()
     if( SOPClassUID != "RTDoseStorage" ) {
@@ -757,8 +760,12 @@ cat("\n\t",FrameOfReferenceUID)
       else fileNameRAWFS<-fileNameRAW;
 
       if(!file.exists(fileNameRAWFS)) logObj$sendLog( "problem in creating image binary file in geoLet::getImageFromRAW()", "ERR"  );
-
-      rn<-readBin(con = fileNameRAWFS, what="integer", size=2, endian="little",n=rowsDICOM*columnsDICOM)
+      
+      if( pixelRepresentation == 1 ) {
+        rn<-readBin(con = fileNameRAWFS, what="integer", size=2, endian="little",n=rowsDICOM*columnsDICOM)  
+      } else {
+        rn<-readBin(con = fileNameRAWFS, what="integer", size=2, endian="little",n=rowsDICOM*columnsDICOM, signed = FALSE)  
+      }
       rn<-matrix(rn,ncol=columnsDICOM, byrow = TRUE)
     }
     if( SOPClassUID == "RTDoseStorage" ) {
@@ -872,7 +879,9 @@ cat("\n\t",FrameOfReferenceUID)
   # NAME: getROIVoxels
   # restituisce i voxel interni ad una data ROI
   #=================================================================================
-  getROIVoxels<-function( Structure  , new.pixelSpacing=c(), SeriesInstanceUID = NA, croppedCube  = TRUE, onlyVoxelCube = FALSE, voxel.inclusion.threshold = 0.5) {
+  getROIVoxels<-function( Structure  , new.pixelSpacing=c(), SeriesInstanceUID = NA, croppedCube  = TRUE, 
+                          onlyVoxelCube = FALSE, voxel.inclusion.threshold = 0.5,
+                          giveBackOriginalImageToo = FALSE) {
 
     if( is.na(SeriesInstanceUID) ) {
       SeriesInstanceUID <- giveBackImageSeriesInstanceUID()  
@@ -886,12 +895,14 @@ cat("\n\t",FrameOfReferenceUID)
     if( dataStorage$info$structures[[Structure]]$type == "DICOMRTStruct" ) {
       res <- getROIVoxels.DICOM(Structure = Structure , new.pixelSpacing=new.pixelSpacing,
                                 SeriesInstanceUID = SeriesInstanceUID, croppedCube  = croppedCube,
-                                onlyVoxelCube = onlyVoxelCube)
+                                onlyVoxelCube = onlyVoxelCube, 
+                                giveBackOriginalImageToo = giveBackOriginalImageToo)
     }
     if( dataStorage$info$structures[[Structure]]$type == "NIFTI" ) {
       res <- getROIVoxels.NIFTI(Structure = Structure , new.pixelSpacing=new.pixelSpacing,
                                 SeriesInstanceUID = SeriesInstanceUID, croppedCube  = croppedCube,
-                                onlyVoxelCube = onlyVoxelCube, voxel.inclusion.threshold = voxel.inclusion.threshold)
+                                onlyVoxelCube = onlyVoxelCube, voxel.inclusion.threshold = voxel.inclusion.threshold,
+                                giveBackOriginalImageToo = giveBackOriginalImageToo)
     }
 
     return( res )
@@ -900,7 +911,8 @@ cat("\n\t",FrameOfReferenceUID)
   # NAME: getROIVoxels.NIFTI
   # restituisce i voxel interni ad una data ROI - DICOM
   #=================================================================================
-  getROIVoxels.NIFTI<-function( Structure  , new.pixelSpacing=c(), SeriesInstanceUID = NA, croppedCube  = TRUE, onlyVoxelCube = FALSE, voxel.inclusion.threshold ) {
+  getROIVoxels.NIFTI<-function( Structure  , new.pixelSpacing=c(), SeriesInstanceUID = NA, croppedCube  = TRUE, 
+                                onlyVoxelCube = FALSE, voxel.inclusion.threshold, giveBackOriginalImageToo = FALSE ) {
     objS<-services();
 
     if(SOPClassUIDList[SOPClassUIDList[,"SeriesInstanceUID"] == SeriesInstanceUID & SOPClassUIDList[,"type"]=="IMG","field2Order"][1] !="IPP.z") {
@@ -963,7 +975,8 @@ cat("\n\t",FrameOfReferenceUID)
   # NAME: getROIVoxels.dicom
   # restituisce i voxel interni ad una data ROI - DICOM
   #=================================================================================
-  getROIVoxels.DICOM<-function( Structure  , new.pixelSpacing=c(), SeriesInstanceUID = NA, croppedCube  = TRUE, onlyVoxelCube = FALSE) {
+  getROIVoxels.DICOM<-function( Structure  , new.pixelSpacing=c(), SeriesInstanceUID = NA, croppedCube  = TRUE, 
+                                onlyVoxelCube = FALSE, giveBackOriginalImageToo = FALSE) {
     objS<-services();
 # browser()
     if(!(Structure %in% getROIList())) logObj$sendLog(  paste(c( Structure," not present."  ),collapse = ''), "ERR"  );
@@ -982,8 +995,12 @@ cat("\n\t",FrameOfReferenceUID)
     }
 
     # Questo va fatto solo se e' chiaro che non si tratta di un nifti'
-    voxelCube <- getROIVoxelsFromCTRMN( Structure = Structure, SeriesInstanceUID = SeriesInstanceUID,
-                                  new.pixelSpacing = new.pixelSpacing)    
+    risultato.ROI <- getROIVoxelsFromCTRMN( Structure = Structure, SeriesInstanceUID = SeriesInstanceUID,
+                                  new.pixelSpacing = new.pixelSpacing, 
+                                  giveBackOriginalImageToo = giveBackOriginalImageToo)  
+    
+    voxelCube <- risultato.ROI$ROIVoxelCube
+    original.ROIVoxelCube <- risultato.ROI$original.ROIVoxelCube
 
     if(sum(!is.na(voxelCube)) == 0 ) return(list())
 
@@ -1004,7 +1021,7 @@ cat("\n\t",FrameOfReferenceUID)
     if( onlyVoxelCube == TRUE ) return( voxelCube )
 
     invisible(gc())
-    toReturn <- list( "voxelCube" = voxelCube, "info"= info)
+    toReturn <- list( "voxelCube" = voxelCube, "info"= info  , "original.voxelCube"=original.ROIVoxelCube)
     class(toReturn)<-"ROIVoxel.struct"
     
     return( toReturn )
@@ -1014,7 +1031,7 @@ cat("\n\t",FrameOfReferenceUID)
   # Estrae i voxel da scansioni CT,MR
   #=================================================================================
   getROIVoxelsFromCTRMN<-function( Structure = Structure, SeriesInstanceUID = SeriesInstanceUID,
-                                   new.pixelSpacing=c() ) {
+                                   new.pixelSpacing=c() , giveBackOriginalImageToo = FALSE) {
     objService<-services()
 
     # se esiste gia' in cache, usa quanto gia' c'e'
@@ -1136,6 +1153,13 @@ cat("\n\t",FrameOfReferenceUID)
     # browser()
     # ROIVoxelCube <- VC[,,] * image.arr[,dim(image.arr)[2]:1,]
     ROIVoxelCube <- getImageVoxelCube( SeriesInstanceUID = SeriesInstanceUID)
+    
+    if(giveBackOriginalImageToo==TRUE) {
+      original.ROIVoxelCube <- ROIVoxelCube
+    } else {
+      original.ROIVoxelCube <- NA
+    }
+    
     ROIVoxelCube[which( image.arr[,dim(image.arr)[2]:1,] == 0, arr.ind = T)] <- NA
 
     # aggiorna la cache
@@ -1148,7 +1172,10 @@ cat("\n\t",FrameOfReferenceUID)
       cacheArea[["ROI"]][[Structure]]$voxelCube <<- ROIVoxelCube
     }
 
-    return( ROIVoxelCube )
+    return( list( "ROIVoxelCube" = ROIVoxelCube,
+                  "original.ROIVoxelCube" = original.ROIVoxelCube 
+                  )
+            )
   }
   #=================================================================================
   # getPixelSpacing
