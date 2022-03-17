@@ -89,10 +89,16 @@ services<-function() {
     if(tag=="0018,0031" | tag=="0018,1072" | tag=="0018,1074" | tag=="0018,1075") {
       stringaQuery<-paste(c('/file-format/data-set/sequence[@tag="0054,0016"]/item/element[@tag="',tag,'"]'),collapse='');
     }
+    
     if(stringaQuery=='') stringaQuery<-paste(c('/file-format/data-set/element[@tag="',tag,'"]'),collapse='');
 
     # execute the QUERY
     valore<-xpathApply(doc,stringaQuery,xmlValue);
+    # if(tag=="0020,000e") {
+    #   if( valore != "2.16.840.1.114362.1.11972228.22907549257.592753187.565.933") browser()
+    # }    
+    
+    
     if(length(valore)==2) logObj$handle( "error" , "a tag in DICOM file seems to be duplicated"  );
     if(length(valore)==0) return(NA);
 

@@ -882,7 +882,7 @@ cat("\n\t",FrameOfReferenceUID)
   getROIVoxels<-function( Structure  , new.pixelSpacing=c(), SeriesInstanceUID = NA, croppedCube  = TRUE, 
                           onlyVoxelCube = FALSE, voxel.inclusion.threshold = 0.5,
                           giveBackOriginalImageToo = FALSE) {
-
+# browser()
     if( is.na(SeriesInstanceUID) ) {
       SeriesInstanceUID <- giveBackImageSeriesInstanceUID()  
     }
@@ -1039,7 +1039,8 @@ cat("\n\t",FrameOfReferenceUID)
     if( "ROI" %in% names(cacheArea)) {
       if( Structure %in% names(cacheArea[["ROI"]]) & use.cacheArea == TRUE ) {
         if ( cacheArea[["ROI"]][[Structure]]$SeriesInstanceUID == SeriesInstanceUID & length(new.pixelSpacing)==0 ) {
-          return( cacheArea[["ROI"]][[Structure]]$voxelCube  )
+          # return( cacheArea[["ROI"]][[Structure]]$voxelCube  )
+          return( cacheArea[["ROI"]][[Structure]]  )
         }
       }
     }
@@ -1163,6 +1164,10 @@ cat("\n\t",FrameOfReferenceUID)
     ROIVoxelCube[which( image.arr[,dim(image.arr)[2]:1,] == 0, arr.ind = T)] <- NA
 
     # aggiorna la cache
+    da.restituire <- list( "ROIVoxelCube" = ROIVoxelCube,
+                           "original.ROIVoxelCube" = original.ROIVoxelCube 
+    )
+    
     # browser()
     if(  length(new.pixelSpacing)==0 & use.cacheArea == TRUE) {
       cacheArea[["ROI"]][[Structure]] <<- list()
@@ -1170,12 +1175,10 @@ cat("\n\t",FrameOfReferenceUID)
       if(length(new.pixelSpacing)>0)  cacheArea[["ROI"]][[Structure]]$pixelSpacing <<- new.pixelSpacing
       if(length(old.ps)>0)  cacheArea[["ROI"]][[Structure]]$pixelSpacing <<- old.ps
       cacheArea[["ROI"]][[Structure]]$voxelCube <<- ROIVoxelCube
+      cacheArea[["ROI"]][[Structure]]$original.ROIVoxelCube <<- original.ROIVoxelCube
     }
 
-    return( list( "ROIVoxelCube" = ROIVoxelCube,
-                  "original.ROIVoxelCube" = original.ROIVoxelCube 
-                  )
-            )
+    return( da.restituire   )
   }
   #=================================================================================
   # getPixelSpacing
@@ -1320,10 +1323,11 @@ cat("\n\t",FrameOfReferenceUID)
   # ===============================================================
   # getInterpolatedSlice
   # ===============================================================
-  getInterpolatedSlice<-function( SIUID.pty , SIUID.ref , n.slice = NA , z.slice = NA  ) {
+  getInterpolatedSlice<-function( SIUID.pty , SIUID.ref , n.slice = NA , z.slice = NA , debug.mode = FALSE  ) {
     
     if( is.na(n.slice) & is.na(z.slice) ) stop(" n.slice OR z.slice should have a value")
     
+    if( debug.mode == TRUE ) browser()
     CT.SIUID <- SIUID.pty
     PT.SIUID <- SIUID.ref
     
@@ -1342,8 +1346,8 @@ cat("\n\t",FrameOfReferenceUID)
     CT.z <- matrix(unlist(lapply( 1:dim(CT.VC)[3], function(x) {get3DPosFromNxNy(Nx = 1,Ny = 1,Nz = x,SeriesInstanceUID = CT.SIUID ) } )),ncol=3,byrow = T)[,3]
     PT.z <- matrix(unlist(lapply( 1:dim(PT.VC)[3], function(x) {get3DPosFromNxNy(Nx = 1,Ny = 1,Nz = x,SeriesInstanceUID = PT.SIUID ) } )),ncol=3,byrow = T)[,3]
 
-    if(!is.na(n.slice))   posizione.PT.from <- between( CT.z[n.slice], PT.z )
-    if(!is.na(z.slice))   posizione.PT.from <- between( z.slice, PT.z )
+    if(!is.na(n.slice))   posizione.PT.from <- between( CT.z[n.slice], PT.z , debug.mode = debug.mode)
+    if(!is.na(z.slice))   posizione.PT.from <- between( z.slice, PT.z , debug.mode = debug.mode)
     posizione.PT.to <- posizione.PT.from + 1
     delta.z <- CT.z[2]-CT.z[1]
     if(!is.na(n.slice)) zRelativePosition <- CT.z[n.slice]-PT.z[posizione.PT.from]
@@ -1354,14 +1358,20 @@ cat("\n\t",FrameOfReferenceUID)
     res <- CT.VC[,,1]
     res[1:dim(res)[1],1:dim(res)[2]] <- minVal
 
-    aaa <- .C("c_getInterpolatedSlice2D",
-            as.integer(length(PT.x)), as.integer(length(PT.y)), as.double(delta.z), as.double(zRelativePosition),
-            as.integer(length(CT.x)), as.integer(length(CT.y)),
-            as.double(PT.x), as.double(PT.y),
-            as.double(CT.x), as.double(CT.y),
-            as.double(as.array(PT.VC[,,posizione.PT.from])),
-            as.double(as.array(PT.VC[,,posizione.PT.to])),
-            as.double(as.array(res)), as.double(minVal) );
+    if( !is.na(n.slice) & (CT.z[n.slice] %in% PT.z) ) {
+      browser()
+    } else {
+      aaa <- .C("c_getInterpolatedSlice2D",
+                as.integer(length(PT.x)), as.integer(length(PT.y)), as.double(delta.z), as.double(zRelativePosition),
+                as.integer(length(CT.x)), as.integer(length(CT.y)),
+                as.double(PT.x), as.double(PT.y),
+                as.double(CT.x), as.double(CT.y),
+                as.double(as.array(PT.VC[,,posizione.PT.from])),
+                as.double(as.array(PT.VC[,,posizione.PT.to])),
+                as.double(as.array(res)), as.double(minVal) );      
+    }
+    
+
     
     
     res <- matrix(aaa[13][[1]],nrow=dim(CT.VC)[1])
@@ -1386,7 +1396,8 @@ cat("\n\t",FrameOfReferenceUID)
   # ===============================================================
   # between
   # ===============================================================
-  between <- function(value, arr) {
+  between <- function(value, arr , debug.mode = FALSE) {
+    if( debug.mode == TRUE ) browser()
     position <- unlist(lapply( 1:(length(arr - value)-1), function(x){  if( (arr - value)[x]*(arr - value)[x+1]<0  ) return(x) } ))
     return(position)
   }  

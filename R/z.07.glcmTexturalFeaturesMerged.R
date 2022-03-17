@@ -1,62 +1,70 @@
-#' GLCM  features
-#'
-#' @description  Extract the GLCM features
-#' @param imgObj a 3D matrix
-#' @export
+######################################
+### BEGIN FUNCION ####################
+######################################
+
+
 #' @import radiomics data.table
-glcmTexturalFeatures <- function(imgObj,n_grey){
+#' @export
+glcmTexturalFeaturesMerged <- function(imgObj,n_grey){
   
+
+  if(length(dim(imgObj))<3) { 
+    imgObj <- array(imgObj, dim=c(dim(imgObj)[1],dim(imgObj)[2],1))
+  } 
   # compute number of non-NA voxels
-  # browser()
+  
   nVoxel <- dim(imgObj)[1]*dim(imgObj)[2]*dim(imgObj)[3] - sum(is.na(imgObj))
   grayLevlesMax <- max(imgObj,na.rm = T)
   ### compute Gray Levels Cooccurrence Matrices
   
-  G_list <- list()
-  
-  if(length(dim(imgObj))<3) { 
-    imgObj <- array(imgObj, dim=c(dim(imgObj)[1],dim(imgObj)[2],1))
-  } 
+
   
   #Compute grey level cooccurrence matrices for 4 different directions within each slice
+  
+  sumtot <- list()
   for (i in 1:dim(imgObj)[3]){
     if(length(imgObj[,,i])*.005 >= sum(!is.na(imgObj[,,i]))) next
     imgObj[,,i] <- round(imgObj[,,i])
     #if(length(table(unique(imgObj[,,i])))<n_grey) n_grey <- length(table(unique(imgObj[,,i])))-1
+    G_list <- list()
     if (min(imgObj[,,i],na.rm = T) < 0) {imgObj[,,i] <- imgObj[,,i] + abs(min(imgObj[,,i],na.rm = T))}
-    G_list[[(i-1)*4+1]] <- as.matrix(glcm(imgObj[,,i], angle = 0, normalize = F,verbose=F,n_grey = n_grey))
-    G_list[[(i-1)*4+2]] <- as.matrix(glcm(imgObj[,,i], angle = 45, normalize = F,verbose=F,n_grey = n_grey))
-    G_list[[(i-1)*4+3]] <- as.matrix(glcm(imgObj[,,i], angle = 90, normalize = F,verbose=F,n_grey = n_grey))
-    G_list[[(i-1)*4+4]] <- as.matrix(glcm(imgObj[,,i], angle = 135, normalize = F,verbose=F,n_grey = n_grey))
+    G_list[[1]] <- as.matrix(glcm(imgObj[,,i], angle = 0, normalize = F,verbose=F,n_grey = n_grey))
+    G_list[[2]] <- as.matrix(glcm(imgObj[,,i], angle = 45, normalize = F,verbose=F,n_grey = n_grey))
+    G_list[[3]] <- as.matrix(glcm(imgObj[,,i], angle = 90, normalize = F,verbose=F,n_grey = n_grey))
+    G_list[[4]] <- as.matrix(glcm(imgObj[,,i], angle = 135, normalize = F,verbose=F,n_grey = n_grey))
+    matrix.df <- ldply(G_list, data.table::melt, varnames=c("row", "col"))
+    sumtot[[i]] <- acast(matrix.df, row ~ col, sum)
   }
   
   #elimino gli elementi NULL della lista
-  if(length(G_list)!=0){
-    if(length(which(sapply(G_list, is.null)))!=0){
-      G_list = G_list[-which(sapply(G_list, is.null))]
+  if(length(sumtot)!=0){
+    if(length(which(sapply(sumtot, is.null)))!=0){
+      sumtot = sumtot[-which(sapply(sumtot, is.null))]
     }
   }
-  #Initialise data table for storing GLCM features; I have added a few
-  featNames <- c("F_cm.joint.max", "F_cm.joint.avg", "F_cm.joint.var", "F_cm.joint.entr",
-                 "F_cm.diff.avg", "F_cm.diff.var", "F_cm.diff.entr",
-                 "F_cm.sum.avg", "F_cm.sum.var", "F_cm.sum.entr", "F_cm.energy","F_cm.contrast","F_cm.dissimilarity",
-                 "F_cm.inv.diff","F_cm.inv.diff.norm","F_cm.inv.diff.mom","F_cm.inv.diff.mom.norm","F_cm.inv.var",
-                 "F_cm.corr","F_cm.auto.corr","F_cm.clust.tend","F_cm.clust.shade","F_cm.clust.prom",
-                 "F_cm.info.corr.1","F_cm.info.corr.2")
-  F_cm <- data.table(matrix(NA, nrow=length(G_list), ncol=length(featNames)))
-  colnames(F_cm) <- featNames
+  
+  #Initialise data table for storing GLCM features
+  featNames <- c("F_cm_merged.joint.max", "F_cm_merged.joint.avg", "F_cm_merged.joint.var", "F_cm_merged.joint.entr",
+                 "F_cm_merged.diff.avg", "F_cm_merged.diff.var", "F_cm_merged.diff.entr",
+                 "F_cm_merged.sum.avg", "F_cm_merged.sum.var", "F_cm_merged.sum.entr", "F_cm_merged.energy","F_cm_merged.contrast","F_cm_merged.dissimilarity",
+                 "F_cm_merged.inv.diff","F_cm_merged.inv.diff.norm","F_cm_merged.inv.diff.mom","F_cm_merged.inv.diff.mom.norm","F_cm_merged.inv.var",
+                 "F_cm_merged.corr","F_cm_merged.auto.corr","F_cm_merged.clust.tend","F_cm_merged.clust.shade","F_cm_merged.clust.prom",
+                 "F_cm_merged.info.corr.1","F_cm_merged.info.corr.2")
+  
+  F_cm_merged <- data.table(matrix(NA, nrow=length(sumtot), ncol=length(featNames)))
+  colnames(F_cm_merged) <- featNames
   
   #Iterate over grey level cooccurrence matrices
   #The idea is that basically every GLCM is the same, i.e. we can just perform the same operations on every glcm.
-  for (iter in seq_len(length(G_list))){
+  for (iter in seq_len(length(sumtot))){
     
-    Ng <- ncol(G_list[[iter]])
+    Ng <- ncol(sumtot[[iter]])
     
     #Convert matrix to data table
-    df.G    <- data.table(G_list[[iter]])
+    df.G    <- data.table(sumtot[[iter]])
     
     #Add row grey level intensity
-    df.G$i <- as.numeric(row.names(G_list[[iter]]))
+    df.G$i <- as.numeric(row.names(sumtot[[iter]]))
     
     #Convert from wide to long table. This is the preferred format for data tables and data frames
     df.G   <- data.table::melt(df.G, id.vars="i", variable.name="j", value.name="n", variable.factor=FALSE)
@@ -100,87 +108,87 @@ glcmTexturalFeatures <- function(imgObj,n_grey){
     #Calculate features
     
     #Joint maximum
-    F_cm$F_cm.joint.max[iter]         <- max(df.p_ij$p_ij)
+    F_cm_merged$F_cm_merged.joint.max[iter]         <- max(df.p_ij$p_ij)
     
     #Joint average
-    F_cm$F_cm.joint.avg[iter]         <- sum(df.p_ij$i * df.p_ij$p_ij)
+    F_cm_merged$F_cm_merged.joint.avg[iter]         <- sum(df.p_ij$i * df.p_ij$p_ij)
     
     #Joint variance
     mu <- sum(df.p_ij$i * df.p_ij$p_ij)
-    F_cm$F_cm.joint.var[iter]         <- sum((df.p_ij$i-mu)^2 * df.p_ij$p_ij)
+    F_cm_merged$F_cm_merged.joint.var[iter]         <- sum((df.p_ij$i-mu)^2 * df.p_ij$p_ij)
     
     #Joint entropy
-    F_cm$F_cm.joint.entr[iter]        <- - sum(df.p_ij$p_ij * log2(df.p_ij$p_ij))
+    F_cm_merged$F_cm_merged.joint.entr[iter]        <- - sum(df.p_ij$p_ij * log2(df.p_ij$p_ij))
     
     #Difference average
-    F_cm$F_cm.diff.avg[iter]          <- sum((df.p_imj$k) * df.p_imj$p_imj)
+    F_cm_merged$F_cm_merged.diff.avg[iter]          <- sum((df.p_imj$k) * df.p_imj$p_imj)
     
     #Difference variance
     mu <- sum((df.p_imj$k) * df.p_imj$p_imj)
-    F_cm$F_cm.diff.var[iter]          <- sum((df.p_imj$k-mu)^2 * df.p_imj$p_imj)
+    F_cm_merged$F_cm_merged.diff.var[iter]          <- sum((df.p_imj$k-mu)^2 * df.p_imj$p_imj)
     
     #Difference entropy
-    F_cm$F_cm.diff.entr[iter]         <- - sum(df.p_imj$p_imj * log2(df.p_imj$p_imj))
+    F_cm_merged$F_cm_merged.diff.entr[iter]         <- - sum(df.p_imj$p_imj * log2(df.p_imj$p_imj))
     
     #Sum average
-    F_cm$F_cm.sum.avg[iter]           <- sum(df.p_ipj$k * df.p_ipj$p_ipj)
+    F_cm_merged$F_cm_merged.sum.avg[iter]           <- sum(df.p_ipj$k * df.p_ipj$p_ipj)
     
     #Sum variance
     mu <- sum(df.p_ipj$k * df.p_ipj$p_ipj)
-    F_cm$F_cm.sum.var[iter]           <- sum((df.p_ipj$k-mu)^2 * df.p_ipj$p_ipj)
+    F_cm_merged$F_cm_merged.sum.var[iter]           <- sum((df.p_ipj$k-mu)^2 * df.p_ipj$p_ipj)
     
     #Sum entropy
-    F_cm$F_cm.sum.entr[iter]          <- - sum(df.p_ipj$p_ipj * log2(df.p_ipj$p_ipj))
+    F_cm_merged$F_cm_merged.sum.entr[iter]          <- - sum(df.p_ipj$p_ipj * log2(df.p_ipj$p_ipj))
     
     #Angular second moment
-    F_cm$F_cm.energy[iter]          <- sum(df.p_ij$p_ij^2)
+    F_cm_merged$F_cm_merged.energy[iter]          <- sum(df.p_ij$p_ij^2)
     
     #Contrast
-    F_cm$F_cm.contrast[iter]          <- sum((df.p_ij$i - df.p_ij$j)^2 * df.p_ij$p_ij)
+    F_cm_merged$F_cm_merged.contrast[iter]          <- sum((df.p_ij$i - df.p_ij$j)^2 * df.p_ij$p_ij)
     
     #Dissimilarity
-    F_cm$F_cm.dissimilarity[iter]          <- sum(abs(df.p_ij$i - df.p_ij$j) * df.p_ij$p_ij)
+    F_cm_merged$F_cm_merged.dissimilarity[iter]          <- sum(abs(df.p_ij$i - df.p_ij$j) * df.p_ij$p_ij)
     
     #Inverse difference
-    F_cm$F_cm.inv.diff[iter]          <- sum( df.p_ij$p_ij/(1+abs(df.p_ij$i - df.p_ij$j)) )
+    F_cm_merged$F_cm_merged.inv.diff[iter]          <- sum( df.p_ij$p_ij/(1+abs(df.p_ij$i - df.p_ij$j)) )
     
     #Inverse difference normalized
     D <- abs(df.p_ij$i - df.p_ij$j)/grayLevlesMax
-    F_cm$F_cm.inv.diff.norm[iter]          <- sum(df.p_ij$p_ij / (1+D) )
+    F_cm_merged$F_cm_merged.inv.diff.norm[iter]          <- sum(df.p_ij$p_ij / (1+D) )
     
     #Inverse difference moment
-    F_cm$F_cm.inv.diff.mom[iter]          <- sum(df.p_ij$p_ij/(1+(df.p_ij$i - df.p_ij$j)^2))
+    F_cm_merged$F_cm_merged.inv.diff.mom[iter]          <- sum(df.p_ij$p_ij/(1+(df.p_ij$i - df.p_ij$j)^2))
     
     #Inverse difference moment normalized
     DD <- ((df.p_ij$i - df.p_ij$j)/grayLevlesMax)^2
-    F_cm$F_cm.inv.diff.mom.norm[iter]          <- sum(df.p_ij$p_ij / (1+DD))
+    F_cm_merged$F_cm_merged.inv.diff.mom.norm[iter]          <- sum(df.p_ij$p_ij / (1+DD))
     
     #Inverse variance
     df.jmorethani <- df.p_ij[which(df.p_ij$j>df.p_ij$i),]
-    F_cm$F_cm.inv.var[iter]          <- 2*sum(df.jmorethani$p_ij/(df.jmorethani$i-df.jmorethani$j)^2)
+    F_cm_merged$F_cm_merged.inv.var[iter]          <- 2*sum(df.jmorethani$p_ij/(df.jmorethani$i-df.jmorethani$j)^2)
     
     #Correlation
     mu.i <- sum(df.p_i$i * df.p_i$p_i)
     sigma.i <- sqrt(sum((df.p_i$i - mu.i)^2 * df.p_i$p_i))
-    F_cm$F_cm.corr[iter] <- (1/sigma.i)^2 * sum((df.p_ij$i - mu.i) * (df.p_ij$j - mu.i) * df.p_ij$p_ij)
+    F_cm_merged$F_cm_merged.corr[iter] <- (1/sigma.i)^2 * sum((df.p_ij$i - mu.i) * (df.p_ij$j - mu.i) * df.p_ij$p_ij)
     
     #Autocorrelation
-    F_cm$F_cm.auto.corr[iter] <- sum(df.p_ij$i * df.p_ij$j * df.p_ij$p_ij)
+    F_cm_merged$F_cm_merged.auto.corr[iter] <- sum(df.p_ij$i * df.p_ij$j * df.p_ij$p_ij)
     
     #Cluster tendency
-    F_cm$F_cm.clust.tend[iter] <- sum((df.p_ij$i + df.p_ij$j -2*mu.i)^2 * df.p_ij$p_ij)
+    F_cm_merged$F_cm_merged.clust.tend[iter] <- sum((df.p_ij$i + df.p_ij$j -2*mu.i)^2 * df.p_ij$p_ij)
     
     #Cluster shade
-    F_cm$F_cm.clust.shade[iter] <- sum((df.p_ij$i + df.p_ij$j -2*mu.i)^3 * df.p_ij$p_ij)
+    F_cm_merged$F_cm_merged.clust.shade[iter] <- sum((df.p_ij$i + df.p_ij$j -2*mu.i)^3 * df.p_ij$p_ij)
     
     #Cluster prominence
-    F_cm$F_cm.clust.prom[iter] <- sum((df.p_ij$i + df.p_ij$j -2*mu.i)^4 * df.p_ij$p_ij)
+    F_cm_merged$F_cm_merged.clust.prom[iter] <- sum((df.p_ij$i + df.p_ij$j -2*mu.i)^4 * df.p_ij$p_ij)
     
     #First measure of information correlation
     HXY <- - sum(df.p_ij$p_ij * log2(df.p_ij$p_ij))
     HX <- - sum(df.p_i$p_i * log2(df.p_i$p_i))
     HXY1 <- - sum(df.p_ij$p_ij * log2(df.p_ij$p_i * df.p_ij$p_j))
-    F_cm$F_cm.info.corr.1[iter] <- (HXY - HXY1) / HX
+    F_cm_merged$F_cm_merged.info.corr.1[iter] <- (HXY - HXY1) / HX
     
     #Second measure of information correlation
     #HXY2 <- - sum(df.p_ij$p_i * df.p_ij$p_j * log2(df.p_ij$p_i * df.p_ij$p_j))
@@ -188,8 +196,9 @@ glcmTexturalFeatures <- function(imgObj,n_grey){
     # else if (HXY <= HXY2 ) F_cm$F_cm.info.corr.2[iter] <- sqrt(1-exp(-2*(HXY2 - HXY)))
     
     HXY2 <- - sum(df.p_ij$p_i * df.p_ij$p_j * log2(df.p_ij$p_i * df.p_ij$p_j))
-    F_cm$F_cm.info.corr.2[iter] <- sqrt(1-exp(-2*(abs(HXY2 - HXY))))
+    F_cm_merged$F_cm_merged.info.corr.2[iter] <- sqrt(1-exp(-2*(abs(HXY2 - HXY))))
+    
   }
   
-  return(F_cm)
+  return(F_cm_merged)
 }
