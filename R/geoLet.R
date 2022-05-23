@@ -538,7 +538,10 @@ geoLet<-function( use.ROICache = TRUE ) {
 
       # Se non era ancora stato settato, setta il FrameOfReferenceUID di riferimento
       if(is.na(internalAttributes$attr_mainFrameOfReferenceUID)) internalAttributes$attr_mainFrameOfReferenceUID <<- FrameOfReferenceUID
-cat("\n\t",FrameOfReferenceUID)
+# cat("\n\t",FrameOfReferenceUID)
+
+      if(is.na(internalAttributes$attr_mainFrameOfReferenceUID)) stop("Error #39847")
+  
       # Verifica che il FORUID sia compatibile con quello caricato (se no, dai errore)
       if( FrameOfReferenceUID != internalAttributes$attr_mainFrameOfReferenceUID ) stop("FORUID differente!")
 
@@ -1454,7 +1457,7 @@ cat("\n\t",FrameOfReferenceUID)
   #=================================================================================
   # Constructor
   #=================================================================================
-  constructor<-function( use.ROICache  ) {
+  constructor<-function( use.ROICache , verbose ) {
 
     # Attributes - set by user
     internalAttributes$maxDistanceForImageROICoupling<<-0.2
@@ -1487,7 +1490,7 @@ cat("\n\t",FrameOfReferenceUID)
     cacheArea <<- list( "ROI" = list() )
     use.cacheArea <<- use.ROICache
   }
-  constructor( use.ROICache = use.ROICache)
+  constructor( use.ROICache = use.ROICache )
   return( list(
     "openDICOMFolder"=openDICOMFolder,
     "setAttribute"=setAttribute,
