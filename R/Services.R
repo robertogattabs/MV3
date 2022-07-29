@@ -46,12 +46,13 @@ services<-function() {
     fileNameXML<-str_replace_all(string = fileNameXML , pattern = " .xml",replacement = ".xml")
     # salva solo path senza nome oggetto DICOM
     pathToStore<-substr(fileName,1,tail(which(strsplit(fileName, '')[[1]]=='/'),1)-1)
+    # browser() # rg-im
     # se file con estensione xml gia' esiste nella cartella non fare nulla altrimenti lo aggiunge
     if(!file.exists( fileNameXML ) | folderCleanUp==TRUE) {
       stringa1<-"dcm2xml";
       if ( Sys.info()["sysname"] == "Windows") {
         options(warn=-1)
-        # browser()
+        # 
         p.fileNameXML <- paste( c('"',fileNameXML,'"') ,collapse = '')
         p.fileName <- paste( c('"',fileName,'"') ,collapse = '')
         stringa2<-paste(" +M  ",p.fileName,p.fileNameXML,collapse='')
@@ -203,6 +204,34 @@ services<-function() {
     return(erodedVoxelCube)
   }
   # ========================================================================================
+  # regionGrowing
+  # ========================================================================================
+  regionGrowing<-function(  imageVC, c.pos, c.threshold ) {
+    # browser()
+    nX<-dim(imageVC)[1];    nY<-dim(imageVC)[2];  nZ<-dim(imageVC)[2];
+    # mx<-margin.x; my<-margin.y;
+    iterator<-0; # this is just to avoid infinite loops...
+    
+    # erode it!
+    minValue<-min(imageVC[which(!is.na(imageVC),arr.ind = T)])-100;
+    imageVC[which(is.na(imageVC),arr.ind = T)] <- minValue
+    maskedCube <- imageVC * 0;
+    maskedCube[c.pos] <- 1
+    xPos <- c.pos[1]; yPos <- c.pos[2]; zPos <- c.pos[3];
+    
+    # browser()
+    aa<-.C("regionGrowing",as.double(imageVC) )
+    
+    # aa<-.C("regionGrowing",as.double(imageVC), as.double(maskedCube), 
+    #        as.integer(nX), as.integer(nY),as.integer(nZ),
+    #        as.integer(xPos), as.integer(yPos),as.integer(zPos),
+    #        as.integer(iterator), as.double(c.threshold))
+    # browser()
+    # erodedVoxelCube<-array(aa[[1]], dim=c(nX,nY))
+    # erodedVoxelCube[which(erodedVoxelCube==minValue,arr.ind = T)]<-NA
+    # return(erodedVoxelCube)
+  }  
+  # ========================================================================================
   # applyErosion.2D: crop a voxel cube in order to limit its dimension to the needs
   # ========================================================================================
   PointInPolygon.Axial.2D<-function( axialImg, xVertex, yVertex   ) {
@@ -343,7 +372,8 @@ services<-function() {
     "erosion.2D"=erosion.2D,
     "anonymizeFolder"=anonymizeFolder,
     "binarize"=binarize,
-    "Skeletonize"=Skeletonize
+    "Skeletonize"=Skeletonize,
+    "regionGrowing"=regionGrowing
   ))
 }
 

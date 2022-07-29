@@ -208,7 +208,7 @@ geoLet<-function( use.ROICache = TRUE ) {
 # browser()
     # Load the XML file if not in cache
     doc <- obj.S$getXMLStructureFromDICOMFile( fileName = fileName, folderCleanUp = folderCleanUp )
-
+# browser()
     # prima di tutto controlla che la FrameOfReferenceUID sia la stessa OVUNQUE e che punti
     # ad una serie di immagini ESISTENTE!
     # E' un chiodo ma .... ragionevole, almeno per ora
@@ -224,7 +224,7 @@ geoLet<-function( use.ROICache = TRUE ) {
       }
     }
 
-    if( length(unique(unlist(FORUID.d))) > 1 ) ogObj$sendLog(  "more than 1 FrameOfReferenceUID in RTStruct file" , "ERR" );
+    if( length(unique(unlist(FORUID.d))) > 1 ) logObj$sendLog(  "more than 1 FrameOfReferenceUID in RTStruct file" , "ERR" );
     if( (unique(unlist(FORUID.d)) == FORUID.m ) == FALSE) ogObj$sendLog(  "FrameOfReferenceUID not aligned (?) in RTStruct file" , "ERR" );
     referencedFORUID <-  unique(unlist(FORUID.d))[1]
 
@@ -733,7 +733,7 @@ geoLet<-function( use.ROICache = TRUE ) {
       stringa2<-paste(" +W  ",pathToStore,fileNameFS,collapse='')
       options(warn=-1)
       stringone<-as.character(paste( c(stringa1," ",stringa2),collapse=''))
-      
+      # browser()
       # gestisci le system call in maniera diversa in funzione che sia WINDOWS o LINUX
       if ( Sys.info()["sysname"] == "Windows") {
         stringa2 <- chartr("/","\\",stringa2)
