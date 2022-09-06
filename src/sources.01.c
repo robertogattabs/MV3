@@ -605,6 +605,67 @@ void erosion( double *cube,
 }
 
 
+
+
+/*
+ *  Algorithm for regionGrowing on the base of the voxel values
+ *  cube : a pointer to the array of the cube structure
+ *  nX,nY,nZ : dimensions of the cube
+ *  iterator : must be set to '0', it is used to check the deep of the iteration tree.
+ *  minValue : is the minimum value to determine the perimeter 
+ */
+void regionGrowing( double *cube) {
+
+  
+  printf("\n  Hello World ");
+  
+}
+void oldRegionGrowing( double *cube, double *maskedCube,
+              int *nX, int *nY, int *nZ,
+              int *xPos, int *yPos, int *zPos, 
+              int *iterator, int *minValue) {
+  int x,y,z,center,ct;
+  
+  printf("\n  Hello World ");
+  
+  if( *iterator >= 10) return;  // just to avoid infinite loops
+  
+  char *pSeedX = (char *)calloc(1,sizeof(char));
+  char *pSeedY = (char *)calloc(1,sizeof(char));
+  char *pSeedZ = (char *)calloc(1,sizeof(char));
+  
+  center = posDecod(*xPos,*yPos,*zPos,*nX,*nY,*nZ);
+  
+  printf("\n center = %d \n",center);
+  printf("\n  Hello World ");
+  
+  /*
+  
+  // loop per ogni elemento del cubo
+  for( z=0; z<*nZ; z++ ) {
+    for( y=0; y<*nY; y++ ) {
+      for( x=0; x<*nX; x++) {
+        // prendi l'offset relativo al punto in esame
+        center = posDecod(x,y,z,*nX,*nY,*nZ);
+        // printf("\n x %d, y %d, z %d = pos = %d",*nX,*nY,*nZ,center);
+      }
+    }
+  }
+   */
+
+  free(pSeedX); free(pSeedY); free(pSeedZ);
+  
+  /*
+  for(ct=0; ct<= ((*nX)*(*nY)*(*nZ)-1); ct++) {
+    if(cube[ct]==-1) cube[ct]=(*minValue);
+  }
+  // rilancia ricorsivamente
+  *iterator = *iterator + 1;
+  regionGrowing( cube, nX, nY, nZ, iterator, minValue );
+   */
+}
+
+
 /*
 void executeCMDLine( char **stringa, int *strLength ) {
   int i;
