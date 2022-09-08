@@ -21,7 +21,7 @@
 #' @import stringr XML oro.nifti progress
 #' @importFrom mgcv in.out
 geoLet<-function( use.ROICache = TRUE ) {
-
+  
   # global variables
   internalAttributes<-list()                             # Attributes
   cacheArea <- list()                                    # Cache
@@ -30,35 +30,35 @@ geoLet<-function( use.ROICache = TRUE ) {
   dataStorage<-list()                                    # memory data structure
   SOPClassUIDList<-c()
   global_tableROIPointList<-c()
-
+  
   #=================================================================================
   # openDICOMFolder
   # Loads a Folder containing one or more DICOM Studies
   #=================================================================================
   # Open a folder and load the content
   openDICOMFolder<-function( pathToOpen ) {
-
+    
     if(!dir.exists(pathToOpen)) logObj$handle( "error" , "The indicate Path does not exist"  );
-
+    
     # ----------------------------------------------
     # get the dcm file type
     # ----------------------------------------------
     if( internalAttributes$verbose == TRUE ) cat("\n Dir scouting:")
     SOPClassUIDList<<-getFolderContent( pathToOpen );
-
+    
     # ----------------------------------------------
     # Load CT/RMN Scans
     # ----------------------------------------------
     if( internalAttributes$verbose == TRUE ) cat("\n Image Loading:\n ")
     loadCTRMNRDScans( );
-
+    
     # ----------------------------------------------
     # Carica l'RTStruct, se presente
     # ----------------------------------------------
     if( internalAttributes$verbose == TRUE ) cat("\n RTStruct Loading: ")
     a <- loadRTStructFiles()
     if( internalAttributes$verbose == TRUE ) cat( a$quantity," structures loaded" )
-
+    
     # ----------------------------------------------
     # Carica i nifti, se presenti
     # ----------------------------------------------
@@ -66,7 +66,7 @@ geoLet<-function( use.ROICache = TRUE ) {
     a <- loadNIFTIFileDescription()
     if( internalAttributes$verbose == TRUE ) cat( a$quantity," structures loaded" )
   }
-
+  
   #=================================================================================
   # loadNIFTIFiles
   # Loads the nifti files in the folder
@@ -79,7 +79,7 @@ geoLet<-function( use.ROICache = TRUE ) {
         lastBS <- rev(unlist(str_locate_all(fileNameWithPath,"/")))[1]
         ROIName <- str_trim(str_replace_all(str_trim(str_sub(fileNameWithPath, lastBS+1)),".nii.gz",""))
         ROIName <- paste(c(ROIName,".nii"), collapse = '')
-
+        
         # fileNameWithPath<-SOPClassUIDList[ riga , "fileName"]
         # aaa <- readNIfTI(fname = fileNameWithPath)
         # tmpVC <- slot(aaa,".Data")
@@ -104,10 +104,10 @@ geoLet<-function( use.ROICache = TRUE ) {
   # Loads a DICOM RT Struct (one x folder)
   #=================================================================================
   loadRTStructFiles<-function( ) {
-
+    
     imageSerie<-list();   listaPuntiROI<-list()
     explicitRTStructFileName <- internalAttributes$explicitRTStructFileName
-
+    
     TMP<-list()
     if( is.na(explicitRTStructFileName)) {
       righe.RTStruct <- which(SOPClassUIDList[,"kind"] == "RTStructureSetStorage")
@@ -119,7 +119,7 @@ geoLet<-function( use.ROICache = TRUE ) {
     } else {
       TMP[[ explicitRTStructFileName ]]<-getStructuresFromXML( explicitRTStructFileName );
     }
-# browser()
+    # browser()
     # now let me use some more easy to handle variable names
     matrice2<-c(); matrice3<-c(); FORUID.m<-NA;
     for(i in names(TMP)) {
@@ -137,23 +137,23 @@ geoLet<-function( use.ROICache = TRUE ) {
       }
     }
     listaROI<-list()
-
+    
     # for each ROI
     for(i in matrice2[2,]) {
-
+      
       # get the points
       subMatrix<-matrice3[which(matrice3[,2]==i,arr.ind = TRUE),]
       # if some points exist
       quantiElementiTrovati <- -1
-
+      
       if(is.list(subMatrix) & !is.array(subMatrix)) quantiElementiTrovati<-1
       if(length(subMatrix)==4 & !is.array(subMatrix) & is.matrix(subMatrix)==FALSE) subMatrix <- t(subMatrix)
       if(is.matrix(subMatrix) & is.array(subMatrix)) quantiElementiTrovati<-dim(subMatrix)[1]
-
+      
       if(quantiElementiTrovati==-1) {
         logObj$sendLog( "Unexpected error in loading slices. No slices found.", "ERR"  );
       }
-
+      
       if( quantiElementiTrovati >0 ) {
         listaROI[[i]]<-list()
         # add properly the points to the 'listaROI' structure
@@ -178,7 +178,7 @@ geoLet<-function( use.ROICache = TRUE ) {
         listaROI[[i]]<-NA
       }
     }
-
+    
     for( tmpSOPIUID in names(TMP)) {
       tableROIPointList <- TMP[[tmpSOPIUID]]$tableROIPointList
       ROINamesDaSistemare <- unique(tableROIPointList[,"ROIName"])
@@ -187,7 +187,7 @@ geoLet<-function( use.ROICache = TRUE ) {
         dataStorage$info$structures[[ROIName]]$associatedSlices <<- SOTTOMATRICE
       }
     }
-
+    
     dataStorage[["structures"]]<<-listaROI
     return( list("quantity"=length(listaROI)))
   }
@@ -200,15 +200,15 @@ geoLet<-function( use.ROICache = TRUE ) {
   #   -
   #################################################################################
   getStructuresFromXML<-function( fileName ) {
-
+    
     obj.S<-services();
     massimo<-0
     folderCleanUp <- internalAttributes$attr_folderCleanUp
     arr.SeriesInstanceUID <- giveBackImageSeriesInstanceUID()
-# browser()
+    # browser()
     # Load the XML file if not in cache
     doc <- obj.S$getXMLStructureFromDICOMFile( fileName = fileName, folderCleanUp = folderCleanUp )
-# browser()
+    # browser()
     # prima di tutto controlla che la FrameOfReferenceUID sia la stessa OVUNQUE e che punti
     # ad una serie di immagini ESISTENTE!
     # E' un chiodo ma .... ragionevole, almeno per ora
@@ -223,26 +223,26 @@ geoLet<-function( use.ROICache = TRUE ) {
         logObj$sendLog(  "FrameOfReferenceUID not aligned in RTStruct file" , "ERR" );
       }
     }
-
+    
     if( length(unique(unlist(FORUID.d))) > 1 ) logObj$sendLog(  "more than 1 FrameOfReferenceUID in RTStruct file" , "ERR" );
     if( (unique(unlist(FORUID.d)) == FORUID.m ) == FALSE) ogObj$sendLog(  "FrameOfReferenceUID not aligned (?) in RTStruct file" , "ERR" );
     referencedFORUID <-  unique(unlist(FORUID.d))[1]
-
+    
     # Guarda se ci sono delle immagini con quel FrameOfReferenceUID
     immagini.associabili <- which(SOPClassUIDList[ ,"FrameOfReferenceUID"] == FORUID.m & SOPClassUIDList[ ,"type"] =="IMG")
     if( length(immagini.associabili) == 0 ) {
       logObj$sendLog(  "the FrameOfReferenceUID of the RTStruct is not associated to an image" , "ERR"  );
     }
-
+    
     # SEQUENCES: the one with the attribute  tag="3006,0020"  and name="StructureSetROISequence"
     # is the one with association NAME<->ID
     # Estrazione della parte di xml contenente il nome,numero delle varie ROI
     n2XML<-getNodeSet(doc,'/file-format/data-set/sequence[@tag="3006,0020" and @name="StructureSetROISequence"]/item')
-
+    
     # SEQUENCES: now get the true coords
     # Estrazione delle coordinate di ciascuna ROI
     n3XML<-getNodeSet(doc,'/file-format/data-set/sequence[@tag="3006,0039" and @name="ROIContourSequence"]/item')
-
+    
     # ROI Names
     matrice2<-c()
     # Per ciascuna ROI viene estratto il numero, il nome e organizzati in una matrice
@@ -252,29 +252,29 @@ geoLet<-function( use.ROICache = TRUE ) {
       if( str_trim(ROIName) == "" ) ROIName <- ROINumber
       matrice2<-rbind(matrice2,c(ROINumber,ROIName))
     }
-
+    
     matrice2<-t(matrice2)
     # ROI Point list
     massimo<-0
     matrice3<-c()
-
+    
     # esegue una interazione per ogni ROI
     # Non fa altro che estrarre da 'i' la parte che contiene i vertici della ROI.
     for(i in n3XML) {
       ROINumber<-xpathApply(xmlDoc(i),'/item/element[@tag="3006,0084"]',xmlValue)[[1]]
       ROIName<-matrice2[2,which(matrice2[1,]==ROINumber)]
-
+      
       # la funzione getNodeSet() restituisce l'insieme delle coordinate dei vertici di una sola ROI
       # (sto intendendo per ROI l'insieme di tutti i contorni con lo stesso ROIName)
       listaPuntiDaRavanare<-getNodeSet(xmlDoc(i),'/item/sequence/item')
       numero.Punti.semiperimetro.massimo<-0
-
+      
       # logObj$sendLog( paste( c( "\n Loading the ROI '".ROIName."' : ",length(listaPuntiDaRavanare)," polylines ") , collapse = '') )
-
+      
       # Estrae solo un punto (fPoint.x, fPoint.y, fPoint.z) da listaPuntiDaRavanare in quanto viene assunto
       # che la ROI rispetto alla immagine sono tra loro paralleli (non sempre necessariamente vero)
       for(i2 in listaPuntiDaRavanare)   {
-
+        
         # ReferencedSOPInstanceUID<-xpathApply(xmlDoc(i2),'//element[@tag="0008,1155"]',xmlValue)[[1]]
         # salva le coordinate delle ROI in una lista
         ROIPointList<-xpathApply(xmlDoc(i2),'/item/element[@tag="3006,0050"]',xmlValue)
@@ -284,16 +284,16 @@ geoLet<-function( use.ROICache = TRUE ) {
         fPoint.x<-splittedROIPointList[1]
         fPoint.y<-splittedROIPointList[2]
         fPoint.z<-splittedROIPointList[3]
-
+        
         # Calcola di quanti punti consta il "semiperimetro" della ROI
         # (questo serve per avere un'idea di dove prendere 3 punti abbstanza distanti per calcolare
         # il piano su cui giace)
         numero.Punti.semiperimetro <- as.integer((length(splittedROIPointList)/3)/2)
-
+        
         # Se sei in presenza del numero di punti massimo, visto finora, prendi 3 punti
         if(numero.Punti.semiperimetro>numero.Punti.semiperimetro.massimo &
            numero.Punti.semiperimetro>10) {
-
+          
           # prendi i tre punti sperabilmente più "distanti"
           # E' una stima, lo sa il cielo quali siano in realtà: dovrei
           # calcolare tutte le distanze reciproche! (ma anche no...)
@@ -307,12 +307,12 @@ geoLet<-function( use.ROICache = TRUE ) {
           # memorizza l'equazione del piano ed il numero di punti massimo della ROI
           numero.Punti.semiperimetro.massimo<-numero.Punti.semiperimetro
         }
-
+        
         arr.ReferencedSOPInstanceUID<-c()
         if( length(arr.SeriesInstanceUID) == 0 )  {
           logObj$sendLog( "giveBackImageSeriesInstanceUID(); gave back nothing" , "ERR" );
         }
-
+        
         # Cerca di assegnarlo ad una slice di immagine
         # Considerando un punto nella matrice della ROI calcola per ogni slice la distanza punto piano
         # in modo che se la distanza risulta minore di 0.2 assegna la ROI a quella determinata slice
@@ -326,13 +326,13 @@ geoLet<-function( use.ROICache = TRUE ) {
             arr.ReferencedSOPInstanceUID <- c( arr.ReferencedSOPInstanceUID, slice.index )
           }
         }
-
+        
         # Assumento le slice di immagine fra loro parallele, vedi se è su un piano parallelo ad esse
         # se 'numero.Punti.semiperimetro.massimo'>0 significa che i tre punti della ROI sono stati estratti
         RSOPIUID.da.rimuovere <- c()
         for( RSOPIUID in arr.ReferencedSOPInstanceUID) {
           tmp.SerInstUID <- SOPClassUIDList[which(SOPClassUIDList[,"SOPInstanceUID"] == RSOPIUID),"SeriesInstanceUID"]
-
+          
           if(numero.Punti.semiperimetro.massimo>0) {
             distanza1<-obj.S$getPointPlaneDistance(p1,dataStorage$info[[tmp.SerInstUID]][[RSOPIUID]]$planeEquation)
             distanza2<-obj.S$getPointPlaneDistance(p2,dataStorage$info[[tmp.SerInstUID]][[RSOPIUID]]$planeEquation)
@@ -352,7 +352,7 @@ geoLet<-function( use.ROICache = TRUE ) {
         # Trattieni solo le SOPClassUID delle immagini che sono risultate paralele
         # (togli quelle non paralle dalla lista costruita precedentemente)
         arr.ReferencedSOPInstanceUID <- arr.ReferencedSOPInstanceUID[  which(!(arr.ReferencedSOPInstanceUID %in% RSOPIUID.da.rimuovere)) ]
-
+        
         # Aggiorna la tabella delle associazioni ROI, immagini
         if( length(arr.ReferencedSOPInstanceUID) > 0 ) {
           for( tmp.RSOPUID in arr.ReferencedSOPInstanceUID ) {
@@ -364,7 +364,7 @@ geoLet<-function( use.ROICache = TRUE ) {
         # matrice3<-rbind(matrice3,c(ROINumber,ROIName,ROIPointList,ReferencedSOPInstanceUID))
       }
     }
-
+    
     if( length(matrice3)>0) {
       if(is.matrix(matrice3)) {
         colnames(matrice3)<-c( "ROINumber", "ROIName", "ROIPointList", "ReferencedSOPInstanceUID"  )
@@ -372,7 +372,7 @@ geoLet<-function( use.ROICache = TRUE ) {
         names(matrice3)<-c( "ROINumber", "ROIName", "ROIPointList", "ReferencedSOPInstanceUID"  )
       }
     }
-
+    
     colnames(matrice3) <- c("ROINumber", "ROIName", "ROIPointList", "ReferencedSOPInstanceUID")
     global_tableROIPointList <<- matrice3
     return(list("IDROINameAssociation"=matrice2,"tableROIPointList"=matrice3,"FORUID.m"=FORUID.m,"RTStructSeriesInstanceUID"=RTStructSeriesInstanceUID))
@@ -386,17 +386,17 @@ geoLet<-function( use.ROICache = TRUE ) {
     objS <- services()
     # if no path is given, use the set one
     if(!dir.exists(pathToOpen)) logObj$sendLog(  "The indicate Path does not exist" ,"ERR" );
-
+    
     # salva in un array tutti i DICOM presenti nella cartella
     DCMFilenameArray<-list.files(pathToOpen,internalAttributes$defaultExtension.dicom)
     NIFTIFilenameArray<-list.files(pathToOpen,internalAttributes$defaultExtension.nifti)
-
+    
     # lista con la SOP Class UID di ciascun DICOM
     SOPClassUIDList<-list()
     nomiColonne <- c("fileName","tag","kind","type","IPP.x","IPP.y","IPP.z","FrameOfReferenceUID","ImageOrder","field2Order","p.x","p.y","p.z","SOPInstanceUID","ImageOrientationPatient","SeriesInstanceUID")
     MMatrix <- matrix(ncol=length(nomiColonne),nrow=0)
     colnames(MMatrix)<-nomiColonne
-
+    
     ImagingPositionArray <- c()
     Iteration <- 0
     ImageOrder <- 1
@@ -414,17 +414,17 @@ geoLet<-function( use.ROICache = TRUE ) {
           substr( fileNameWithPath, nchar( fileNameWithPath ) - 3,nchar(fileNameWithPath))!='.raw' &
           substr( fileNameWithPath, nchar( fileNameWithPath ) - 3,nchar(fileNameWithPath))!='.txt' &
           substr( fileNameWithPath, nchar( fileNameWithPath ) - (str_length(internalAttributes$defaultExtension.nifti)-1),nchar(fileNameWithPath))!=internalAttributes$defaultExtension.nifti
-          ) {
-
+      ) {
+        
         # if( internalAttributes$verbose == TRUE ) cat(".")
-
+        
         riga <- nrow(MMatrix) + 1
         MMatrix <- rbind(MMatrix, rep("",ncol(MMatrix))  )
         valore<-getDICOMTag( fileName = fileNameWithPath, tag = "0008,0016")
         MMatrix[riga, "fileName"] <- fileNameWithPath
         MMatrix[riga, "tag"] <- valore
         FrameOfReferenceUID<-getDICOMTag( fileName = fileNameWithPath, tag = "0020,0052")
-
+        
         MMatrix[riga, "FrameOfReferenceUID"]<-FrameOfReferenceUID
         MMatrix[riga, "kind"]<-"Unknown"
         MMatrix[riga, "type"]<-"Unknown"
@@ -436,29 +436,29 @@ geoLet<-function( use.ROICache = TRUE ) {
         if( valore == "1.2.840.10008.5.1.4.1.1.4" ) MMatrix[riga, "kind"]<-"MRImageStorage"
         if( valore == "1.2.840.10008.5.1.4.1.1.128" ) MMatrix[riga, "kind"]<-"PositronEmissionTomographyImageStorage"
         if( valore == "1.2.840.10008.5.1.4.1.1.2.1" ) MMatrix[riga, "kind"]<-"CTImageStorage"
-
+        
         if( MMatrix[riga, "kind"] == "CTImageStorage" |
             MMatrix[riga, "kind"] == "MRImageStorage" |
             MMatrix[riga, "kind"] == "PositronEmissionTomographyImageStorage" )  {
           MMatrix[riga, "type"]<-"IMG"
           MMatrix[riga, "ImageOrder"]<-ImageOrder
           ImageOrder <- ImageOrder + 1
-
+          
           # Prendi il Pixel Spacing e lo slice thickness
           pixelSpacing<-objS$splittaTAG(getDICOMTag(fileName = fileNameWithPath,tag = "0028,0030"))
           sliceThickness<-objS$splittaTAG(getDICOMTag(fileName = fileNameWithPath,tag = "0018,0050"))
           MMatrix[riga, "p.x"]<-pixelSpacing[1]
           MMatrix[riga, "p.y"]<-pixelSpacing[2]
           MMatrix[riga, "p.z"]<-sliceThickness
-
+          
           # ImageOrientation
           ImageOrientationPatient <- getDICOMTag(fileName = fileNameWithPath , tag = "0020,0037")
           MMatrix[riga, "ImageOrientationPatient"] <- ImageOrientationPatient
         }
-
+        
         SOPInstanceUID <- getDICOMTag( tag = "0008,0018", fileName = fileNameWithPath)
         MMatrix[riga, "SOPInstanceUID"] <- SOPInstanceUID
-
+        
         ImagePositionPatient <- getDICOMTag( fileName = fileNameWithPath, tag = "0020,0032")
         if( !is.na(ImagePositionPatient) ) {
           ImagingPosition <- objS$splittaTAG(ImagePositionPatient)
@@ -483,7 +483,7 @@ geoLet<-function( use.ROICache = TRUE ) {
         MMatrix[riga, "type"] <- "nifti"
       }
     }
-
+    
     # Ora devi ordinare le immagini in funzione delle loro coordinate!
     arr.SeriesInstanceUID <- unique(MMatrix[  which( MMatrix[,"type"]=="IMG" ), "SeriesInstanceUID" ])
     for( SIUID in arr.SeriesInstanceUID ) {
@@ -492,7 +492,7 @@ geoLet<-function( use.ROICache = TRUE ) {
       FOV.z <- diff(range(as.numeric(sottomatrice[,"IPP.z"])))
       FOV.y <- diff(range(as.numeric(sottomatrice[,"IPP.y"])))
       FOV.x <- diff(range(as.numeric(sottomatrice[,"IPP.x"])))
-
+      
       # Ordinale per il gap maggiore (para-assiale/coronale/saggittale)
       winner <- order(c(FOV.x,FOV.y,FOV.z),decreasing = T)[1]
       if( winner == 1 ) field2Order <- "IPP.x"
@@ -505,7 +505,7 @@ geoLet<-function( use.ROICache = TRUE ) {
         MMatrix[ which( MMatrix[,"SOPInstanceUID"]==tmp.SOPIUID[i]  ) , "field2Order"] <- field2Order
       }
     }
-
+    
     SOPClassUIDList <- MMatrix
     return(SOPClassUIDList);
   }
@@ -517,14 +517,14 @@ geoLet<-function( use.ROICache = TRUE ) {
     objS <- services()
     # Cicla sulle sole righe corrispondenti a delle immagini
     righe.con.immagini <- which(SOPClassUIDList[,"type"]=="IMG")
-
+    
     for( riga in righe.con.immagini ) {
-
+      
       fileName <- SOPClassUIDList[riga,"fileName"]
       SeriesInstanceUID<-SOPClassUIDList[riga, "SeriesInstanceUID"]
-
+      
       if( internalAttributes$verbose == TRUE ) cat("\n\t ",fileName)
-
+      
       FrameOfReferenceUID<-SOPClassUIDList[riga,"FrameOfReferenceUID"]
       ImageOrder <- SOPClassUIDList[riga,"ImageOrder"]
       SOPInstanceUID <- SOPClassUIDList[riga,"SOPInstanceUID"]
@@ -535,37 +535,37 @@ geoLet<-function( use.ROICache = TRUE ) {
       ImageOrientationPatient <- SOPClassUIDList[riga,"ImageOrientationPatient"]
       ImagePositionPatient <- c(SOPClassUIDList[riga,"IPP.x"],SOPClassUIDList[riga,"IPP.y"],SOPClassUIDList[riga,"IPP.z"])
       pixelSpacing <- as.numeric(c(SOPClassUIDList[riga,"p.x"],SOPClassUIDList[riga,"p.y"]))
-
+      
       # Se non era ancora stato settato, setta il FrameOfReferenceUID di riferimento
       if(is.na(internalAttributes$attr_mainFrameOfReferenceUID)) internalAttributes$attr_mainFrameOfReferenceUID <<- FrameOfReferenceUID
-# cat("\n\t",FrameOfReferenceUID)
-
+      # cat("\n\t",FrameOfReferenceUID)
+      
       if(is.na(internalAttributes$attr_mainFrameOfReferenceUID)) stop("Error #39847")
-  
+      
       # Verifica che il FORUID sia compatibile con quello caricato (se no, dai errore)
       if( FrameOfReferenceUID != internalAttributes$attr_mainFrameOfReferenceUID ) stop("FORUID differente!")
-
+      
       # if( SeriesInstanceUID %in% names(dataStorage[["info"]]) )  dataStorage[["info"]][[SeriesInstanceUID]] <- list()
       # if( SeriesInstanceUID %in% names(dataStorage[["info"]]) )
       if( !(SeriesInstanceUID %in% names(dataStorage[["info"]])) )  dataStorage[["info"]][[SeriesInstanceUID]] <<- list()
-
+      
       dataStorage[["info"]][[SeriesInstanceUID]][[SOPInstanceUID]]<<-list()
       dataStorage[["info"]][[SeriesInstanceUID]][[SOPInstanceUID]][["PatientPosition"]]<<-c(SOPClassUIDList[riga,"IPP.x"],SOPClassUIDList[riga,"IPP.y"],SOPClassUIDList[riga,"IPP.z"])
-
+      
       # Carica l'immagine
       SingleSliceLoader <- loadCTRMNRDScans.SingleSlice( fileName = fileName )
       immagine <- SingleSliceLoader$immagine
-
+      
       # now update the structure in memory
       if( length( dataStorage$img ) == 0 ) dataStorage$img <<- list()
       if( length( dataStorage$img[[SeriesInstanceUID]] ) == 0 ) dataStorage$img[[ SeriesInstanceUID ]] <<- list()
       dataStorage$img[[ SeriesInstanceUID ]][[ SOPInstanceUID ]] <<- immagine
-
+      
       # Costruisci la matrice per le trasformazioni affini
       iPP<-as.numeric(c(IPP.x,IPP.y,IPP.z))
       iOP<-objS$splittaTAG( ImageOrientationPatient )
       oM<-matrix(c(iOP[1],iOP[2],iOP[3],0,iOP[4],iOP[5],iOP[6],0,0,0,0,0,iPP[1],iPP[2],iPP[3],1),ncol=4);
-
+      
       dataStorage[[ "info" ]][[ SeriesInstanceUID ]][[ SOPInstanceUID ]][[ "ImagePositionPatient" ]] <<- ImagePositionPatient
       dataStorage[[ "info" ]][[ SeriesInstanceUID ]][[ SOPInstanceUID ]][[ "ImageOrientationPatient" ]] <<- ImageOrientationPatient
       oM[1,1]<-oM[1,1]*pixelSpacing[1]
@@ -586,7 +586,7 @@ geoLet<-function( use.ROICache = TRUE ) {
       for( campo in names(SingleSliceLoader$fields)) {
         dataStorage[[ "info" ]][[ SeriesInstanceUID ]][[ SOPInstanceUID ]][[ campo ]] <<- SingleSliceLoader$fields[[ campo ]]
       }
-
+      
       if( kind.of.SOPClassUID == "PositronEmissionTomographyImageStorage" ) {
         # Fai qualche controllo di qualita', sulla reale possibilita' di importare le immagini PET
         rescale.type <-  SingleSliceLoader$fields$rescale.type
@@ -594,7 +594,7 @@ geoLet<-function( use.ROICache = TRUE ) {
         CountsSource <- SingleSliceLoader$fields$CountsSource
         DecayCorrection <- SingleSliceLoader$fields$DecayCorrection
         deltaT <- SingleSliceLoader$fields$deltaT
-
+        
         if(is.na(rescale.type)) rescale.type <- UM
         # browser()
         if( UM != rescale.type) {  logObj$sendLog(  "in PET image the rescale slope/intercept have different UM than the one used in the image (0054,1001) vs (0028,1054)" , "ERR"  )  }
@@ -602,33 +602,33 @@ geoLet<-function( use.ROICache = TRUE ) {
         if( DecayCorrection!='START') { logObj$sendLog(  c("\n ERROR: CountsSource!='EMISSION' or DecayCorrection!='START' ! This modality is not yet supported") , "ERR")  }
         if(is.na(deltaT) | is.null(deltaT) | deltaT==0) {  logObj$sendLog( "\n Error: deltaT between RadiopharmaceuticalStartTime and AcquisitionTime seems to be invalid" , "ERR" )  }
       }
-
+      
       # three points to find out plane equation
       Pa<-c(oM[1,4],oM[2,4],oM[3,4])
       Pb<-objS$get3DPosFromNxNy(1000,0,oM)
       Pc<-objS$get3DPosFromNxNy(0,1000,oM)
-
+      
       abcd<-objS$getPlaneEquationBetween3Points(Pa,Pb,Pc)
       piano<-matrix(abcd,nrow=1)
       colnames(piano)<-c("a","b","c","d")
       dataStorage[["info"]][[SeriesInstanceUID]][[SOPInstanceUID]][["planeEquation"]]<<-piano
-
+      
       if(  kind.of.SOPClassUID == "RTDoseStorage" ) {
         stop("not yet implemented")
       }
     }
   }
-
+  
   #=================================================================================
   # loadCTRMNRDScans.SingleSlice
   # Si occupa del caricamento di una singola slice. E' stato scorporato in quanto deve
   # essere potenzialmente evocato da più punti del programma ( gestione cache )
   #=================================================================================
   loadCTRMNRDScans.SingleSlice<-function( fileName ) {
-
+    
     objServ<-services()
     fields <- list()
-
+    
     # get the image data
     immagine<-getDICOMTag(tag = "7fe0,0010", fileName = fileName);
     SOPClassUID <- SOPClassUIDList[ SOPClassUIDList[,"fileName"]==fileName, "kind"]
@@ -637,19 +637,19 @@ geoLet<-function( use.ROICache = TRUE ) {
     rescale.intercept<-as.numeric(getDICOMTag(fileName = fileName,tag ="0028,1052" )); # rescale Intercept
     rescale.slope<-as.numeric(getDICOMTag(fileName = fileName,tag ="0028,1053" )); # rescale Slope
     rescale.type<-getDICOMTag(fileName = fileName,tag ="0028,1054" ); # rescale Type
-
+    
     if(is.na(rescale.intercept)) rescale.intercept = 0;
     if(is.na(rescale.slope)) rescale.slope = 1;
     immagine <- immagine * rescale.slope + rescale.intercept
-
+    
     immagine <- objServ$rotateMatrix( immagine, rotations = 1 )
-
+    
     if( SOPClassUID == "PositronEmissionTomographyImageStorage" ) {
       # browser()
       res <- calculate.SUVCoefficient.BW( fileName = fileName)
       SUVCoefficient.BW <- res$SUVCoefficient.BW
       immagine <- SUVCoefficient.BW * immagine
-
+      
       # copia i campi 'fields' acquisisti dalla funzione per il calcolo del SUV e copiali nei campi
       # fields della lista che verra' restituita
       for( campo in names(res$fields)) {
@@ -660,7 +660,7 @@ geoLet<-function( use.ROICache = TRUE ) {
     fields$rescale.intercept <- rescale.intercept
     fields$rescale.slope <- rescale.slope
     fields$rescale.type <- rescale.type
-
+    
     return( list( "immagine" = immagine,
                   "fields" = fields ) )
   }
@@ -680,17 +680,17 @@ geoLet<-function( use.ROICache = TRUE ) {
     CountsSource<-getDICOMTag(fileName = fileName, tag ="0054,1002" ); # CountsSource
     DecayCorrection<-getDICOMTag(fileName = fileName, tag ="0054,1102" ); # DecayCorrection
     rescale.type<-getDICOMTag(fileName = fileName,tag ="0028,1054" ); # rescale Type)
-
+    
     # deltaT<-as.numeric(difftime(as.POSIXct(AcquisitionTime, format = "%H:%M:%S"),as.POSIXct(RadiopharmaceuticalStartTime, format = "%H:%M:%S"),units = 'secs'))
     deltaT<-as.numeric(difftime(as.POSIXct(AcquisitionTime, format = "%H%M%S"),as.POSIXct(RadiopharmaceuticalStartTime, format = "%H%M%S"),units = 'secs'))
-
+    
     # Una bella considerazione sul rescale.type ci potrebbe anche stare. Nel frattempo pongo il rescale a 1
     rescaleDueToUM<-1
-
+    
     #SUVCoefficient.BW<-PatientWeight/( RadionuclideTotalDose * exp( -deltaT *log(2)/(RadionuclideHalfLife) ) )
     SUVCoefficient.BW<-PatientWeight/( RadionuclideTotalDose * 2^( -deltaT / RadionuclideHalfLife ) ) * 1000
     SUVCoefficient.BW<-SUVCoefficient.BW*rescaleDueToUM
-
+    
     fields$AcquisitionTime <- AcquisitionTime
     fields$RadiopharmaceuticalStartTime <- RadiopharmaceuticalStartTime
     fields$PatientWeight <- PatientWeight
@@ -702,7 +702,7 @@ geoLet<-function( use.ROICache = TRUE ) {
     fields$rescale.type <- rescale.type
     fields$deltaT <- deltaT
     fields$SUVCoefficient.BW <- SUVCoefficient.BW
-
+    
     return( list( "SUVCoefficient.BW" = SUVCoefficient.BW,
                   "fields" = fields ) );
   }
@@ -712,7 +712,7 @@ geoLet<-function( use.ROICache = TRUE ) {
   # into memory (using DCMTK)
   #=================================================================================
   getImageFromRAW<-function(fileName) {
-
+    
     # browser()
     
     objSV<-services()
@@ -761,7 +761,7 @@ geoLet<-function( use.ROICache = TRUE ) {
         fileNameRAWFS<-chartr("/","\\\\",fileNameRAWFS);
       }
       else fileNameRAWFS<-fileNameRAW;
-
+      
       if(!file.exists(fileNameRAWFS)) logObj$sendLog( "problem in creating image binary file in geoLet::getImageFromRAW()", "ERR"  );
       
       if( pixelRepresentation == 1 ) {
@@ -781,9 +781,9 @@ geoLet<-function( use.ROICache = TRUE ) {
           fileNameRAWFS<-chartr("/","\\\\",fileNameRAWFS);
         }
         else fileNameRAWFS<-fileNameRAW;
-
+        
         if(!file.exists(fileNameRAWFS)) logObj$sendLog( "problem in creating image binary file in geoLet::getImageFromRAW()" ,"ERR" );
-
+        
         rn<-readBin(con = fileNameRAWFS, what="integer", size=4, endian="little",n=rowsDICOM*columnsDICOM*numberOfFrames)
         # per ora va via come ciclo FOR, poi ci ragioniamo.... (per le performances)
         matRN<-array(0,c(rowsDICOM,columnsDICOM,numberOfFrames))
@@ -803,15 +803,15 @@ geoLet<-function( use.ROICache = TRUE ) {
         rn<-new_atRN
       } else  {
         numberOfFrames<-as.numeric(getDICOMTag(fileName = fileName, tag = '0028,0008'))
-
+        
         if ( Sys.info()["sysname"] == "Windows") {
           fileNameRAWFS<-chartr("\\","/",fileNameRAW);
           fileNameRAWFS<-chartr("/","\\\\",fileNameRAWFS)
         }
         else fileNameRAWFS<-fileNameRAW;
-
+        
         if(!file.exists(fileNameRAWFS)) logObj$sendLog( "problem in creating image binary file in geoLet::getImageFromRAW()", "ERR"  );
-
+        
         rn<-readBin(con = fileNameRAWFS, what="integer", size=2, endian="little",n=rowsDICOM*columnsDICOM*numberOfFrames)
         matRN<-array(0,c(rowsDICOM,columnsDICOM,numberOfFrames))
         ct<-1
@@ -830,7 +830,7 @@ geoLet<-function( use.ROICache = TRUE ) {
         rn<-new_atRN
       }
     }
-
+    
     return(rn)
   }
   #=================================================================================
@@ -850,32 +850,32 @@ geoLet<-function( use.ROICache = TRUE ) {
   #=================================================================================
   getImageVoxelCube<-function( ps.x=NA, ps.y=NA, ps.z=NA , SeriesInstanceUID = NA) {
     objS<-services();
-
+    
     if( length(giveBackImageSeriesInstanceUID()) > 1 &
         is.na(SeriesInstanceUID) ) {
       logObj$sendLog(  "There are more than one Series, please specify which SeriesInstanceUID you want" ,"ERR" );
     }
-
+    
     # prendi il cubone
     voxelCube<-createImageVoxelCube( SeriesInstanceUID = SeriesInstanceUID)
-
+    
     # se non  server interpolare
     if(is.na(ps.x) && is.na(ps.y) && is.na(ps.z) ) return(voxelCube)
-
+    
     # se invece serve interpolare: prendi i pixelSpacing lungo la X, la Y e la Z (slice thickness)
     oldPixelSpacing<-getPixelSpacing( SeriesInstanceUID = SeriesInstanceUID);
-
+    
     if(is.na(ps.x))  ps.x <- oldPixelSpacing[1];
     if(is.na(ps.y))  ps.y <- oldPixelSpacing[2];
     if(is.na(ps.z))  ps.z <- oldPixelSpacing[3];
-
+    
     voxelCube<-objS$new.trilinearInterpolator(
       voxelCube = voxelCube,
       pixelSpacing.new = c(ps.x,ps.y,ps.z),
       pixelSpacing.old = oldPixelSpacing )
-
+    
     invisible(gc())
-
+    
     return( voxelCube )
   }
   #=================================================================================
@@ -885,7 +885,7 @@ geoLet<-function( use.ROICache = TRUE ) {
   getROIVoxels<-function( Structure  , new.pixelSpacing=c(), SeriesInstanceUID = NA, croppedCube  = TRUE, 
                           onlyVoxelCube = FALSE, voxel.inclusion.threshold = 0.5,
                           giveBackOriginalImageToo = FALSE) {
-# browser()
+    # browser()
     if( is.na(SeriesInstanceUID) ) {
       SeriesInstanceUID <- giveBackImageSeriesInstanceUID()  
     }
@@ -896,10 +896,12 @@ geoLet<-function( use.ROICache = TRUE ) {
     }
     
     if( dataStorage$info$structures[[Structure]]$type == "DICOMRTStruct" ) {
+      cat("\n=================================================================================")
       res <- getROIVoxels.DICOM(Structure = Structure , new.pixelSpacing=new.pixelSpacing,
                                 SeriesInstanceUID = SeriesInstanceUID, croppedCube  = croppedCube,
                                 onlyVoxelCube = onlyVoxelCube, 
                                 giveBackOriginalImageToo = giveBackOriginalImageToo)
+      cat("\n=================================================================================")
     }
     if( dataStorage$info$structures[[Structure]]$type == "NIFTI" ) {
       res <- getROIVoxels.NIFTI(Structure = Structure , new.pixelSpacing=new.pixelSpacing,
@@ -907,7 +909,7 @@ geoLet<-function( use.ROICache = TRUE ) {
                                 onlyVoxelCube = onlyVoxelCube, voxel.inclusion.threshold = voxel.inclusion.threshold,
                                 giveBackOriginalImageToo = giveBackOriginalImageToo)
     }
-
+    
     return( res )
   }
   #=================================================================================
@@ -917,14 +919,14 @@ geoLet<-function( use.ROICache = TRUE ) {
   getROIVoxels.NIFTI<-function( Structure  , new.pixelSpacing=c(), SeriesInstanceUID = NA, croppedCube  = TRUE, 
                                 onlyVoxelCube = FALSE, voxel.inclusion.threshold, giveBackOriginalImageToo = FALSE ) {
     objS<-services();
-
+    
     if(SOPClassUIDList[SOPClassUIDList[,"SeriesInstanceUID"] == SeriesInstanceUID & SOPClassUIDList[,"type"]=="IMG","field2Order"][1] !="IPP.z") {
       logObj$sendLog(  "ERROR: the NIFTI ROI extractions only work with axial images, for the moment", "ERR"  );
     }
     
     
     if( length(new.pixelSpacing) > 1) stop("\n Interpolation not yet supported")
-
+    
     fileNameWithPath <- dataStorage$info$structures[[ Structure ]]$fileName
     aaa <- readNIfTI(fname = fileNameWithPath)
     nifti.VC <- slot(aaa,".Data")
@@ -937,41 +939,41 @@ geoLet<-function( use.ROICache = TRUE ) {
     if(slot(aaa,"slice_code") != 0 ) logObj$sendLog(  "In the NIFTI file, 'slice_code' is not 0" ,"ERR" );
     
     dim.x <- slot(aaa,"dim_")[2];    dim.y <- slot(aaa,"dim_")[3];    dim.z <- slot(aaa,"dim_")[4]
-
+    
     # slice <- 10;  nifti.VC[ which(nifti.VC==0) ] <- NA;    image(VC[,,slice]);    image(nifti.VC[,,35* slice/(dim(VC)[3]) ], add=T,col='green')
     VC <- getImageVoxelCube(SeriesInstanceUID = SeriesInstanceUID)
     
     masked.array <- array(0,dim = dim(VC) )
-
+    
     if(  dim.x < dim(VC)[1]  | dim.y < dim(VC)[2] | dim.z < dim(VC)[3] ) logObj$sendLog(  "Warning, the NIFTI cube has different dimension: we propose a visual check of the results"  );
-
+    
     matrice.Punti <- which( nifti.VC!=0,arr.ind = T )
     
     xlim <- range(matrice.Punti[,1])
     ylim <- range(matrice.Punti[,1])
     zlim <- range(matrice.Punti[,1])
-
+    
     for( riga in 1:nrow(matrice.Punti )) {
       pos.old.VC <- c(  ( matrice.Punti[riga,1] / dim(nifti.VC)[1]) * dim( VC )[1],
                         ( matrice.Punti[riga,2] / dim(nifti.VC)[2]) * dim( VC )[2],
                         ( matrice.Punti[riga,3] / dim(nifti.VC)[3]) * dim( VC )[3]  )
-                        # ( matrice.Punti[riga,3] )  )
+      # ( matrice.Punti[riga,3] )  )
       pos.old.VC <- ceiling( pos.old.VC )
       masked.array[ pos.old.VC[1], pos.old.VC[2], pos.old.VC[3]  ] <- masked.array[ pos.old.VC[1], pos.old.VC[2], pos.old.VC[3]  ] + 1
       pos.old.VC <- floor( pos.old.VC )
       masked.array[ pos.old.VC[1], pos.old.VC[2], pos.old.VC[3]  ] <- masked.array[ pos.old.VC[1], pos.old.VC[2], pos.old.VC[3]  ] + 1
       
     }
-
+    
     # calcola il rapporto in volume dei voxels e guarda quali sono sopra o sotto soglia
     rapporto <- round( ( dim.x * dim.y * dim.z )  / (dim(VC)[1] * dim(VC)[2] * dim(VC)[3])  * voxel.inclusion.threshold )
-
+    
     masked.array[ which( masked.array < rapporto ) ] <- 0
     masked.array[ which( masked.array != 0 ) ] <- 1
     
     # Tenere a 0 o a NA???
     masked.array[ which( masked.array == 0 ) ] <- NA
-
+    
     return(masked.array)
   }
   #=================================================================================
@@ -981,10 +983,10 @@ geoLet<-function( use.ROICache = TRUE ) {
   getROIVoxels.DICOM<-function( Structure  , new.pixelSpacing=c(), SeriesInstanceUID = NA, croppedCube  = TRUE, 
                                 onlyVoxelCube = FALSE, giveBackOriginalImageToo = FALSE) {
     objS<-services();
-# browser()
+    # browser()
     if(!(Structure %in% getROIList())) logObj$sendLog(  paste(c( Structure," not present."  ),collapse = ''), "ERR"  );
     if( length(SeriesInstanceUID) > 1 ) logObj$sendLog(  paste( "Error, too many SeriesInstanceUIDs. No more than one is admitted."  ), "ERR"  );
-
+    
     # try to find out which Series is the CT/MR serie
     if(is.na(SeriesInstanceUID)) {
       arr.SeriesInstanceUID <- giveBackImageSeriesInstanceUID()
@@ -996,17 +998,15 @@ geoLet<-function( use.ROICache = TRUE ) {
       }
       SeriesInstanceUID <- arr.SeriesInstanceUID[1]
     }
-
     # Questo va fatto solo se e' chiaro che non si tratta di un nifti'
     risultato.ROI <- getROIVoxelsFromCTRMN( Structure = Structure, SeriesInstanceUID = SeriesInstanceUID,
-                                  new.pixelSpacing = new.pixelSpacing, 
-                                  giveBackOriginalImageToo = giveBackOriginalImageToo)  
-    
+                                            new.pixelSpacing = new.pixelSpacing, 
+                                            giveBackOriginalImageToo = giveBackOriginalImageToo)  
     voxelCube <- risultato.ROI$ROIVoxelCube
     original.ROIVoxelCube <- risultato.ROI$original.ROIVoxelCube
 
     if(sum(!is.na(voxelCube)) == 0 ) return(list())
-
+    
     info <- list()
     if( croppedCube == TRUE ) {
       croppedVC <- objS$cropCube( bigCube = voxelCube )
@@ -1019,10 +1019,10 @@ geoLet<-function( use.ROICache = TRUE ) {
       info$location$min.x <- 1; info$location$min.y <- 1; info$location$min.z <- 1
       info$location$max.x <- dim(voxelCube)[1]; info$location$max.y <- dim(voxelCube)[2]; info$location$max.z <- dim(voxelCube)[3];
     }
-
+    
     # Se si vuole indietro SOLO il VOXELCube, prevediamo un ritorno semplificato
     if( onlyVoxelCube == TRUE ) return( voxelCube )
-
+    
     invisible(gc())
     toReturn <- list( "voxelCube" = voxelCube, "info"= info  , "original.voxelCube"=original.ROIVoxelCube)
     class(toReturn)<-"ROIVoxel.struct"
@@ -1036,7 +1036,7 @@ geoLet<-function( use.ROICache = TRUE ) {
   getROIVoxelsFromCTRMN<-function( Structure = Structure, SeriesInstanceUID = SeriesInstanceUID,
                                    new.pixelSpacing=c() , giveBackOriginalImageToo = FALSE) {
     objService<-services()
-
+    
     # se esiste gia' in cache, usa quanto gia' c'e'
     # browser()
     if( "ROI" %in% names(cacheArea)) {
@@ -1047,7 +1047,7 @@ geoLet<-function( use.ROICache = TRUE ) {
         }
       }
     }
-
+    
     # define some variables to make more clear the code
     numberOfRows<-as.numeric(dataStorage$info[[SeriesInstanceUID]][[1]]$Rows);
     numberOfColumns<-as.numeric(dataStorage$info[[SeriesInstanceUID]][[1]]$Columns);
@@ -1066,21 +1066,23 @@ geoLet<-function( use.ROICache = TRUE ) {
     }
     
     # initialize the image array with the right dimension
-    image.arr<-array( data = 0, dim = c(numberOfColumns, numberOfRows, numberOfSlices ) )
+    # - im
+    image.arr<-array( data = NA, dim = c(numberOfColumns, numberOfRows, numberOfSlices ) )
+    # image.arr<-array( data = 0, dim = c(numberOfColumns, numberOfRows, numberOfSlices ) )
+    # - fm
     
     # prendi le immagini cui e' associata la ROI (referenziata)'
     tabellaAssociazioni <- dataStorage$info$structures[[Structure]]$associatedSlices
     if( length(tabellaAssociazioni) == 4 ) {tmpAN <- names(tabellaAssociazioni) } else { tmpAn <- colnames(tabellaAssociazioni) }
-
-    pb <- progress_bar$new(total = numberOfSlices)
     
+    pb <- progress_bar$new(total = numberOfSlices)
     for( n in 1:numberOfSlices ) {
       tmpSOPIUID <- SOPClassUIDList[  which(SOPClassUIDList[,"ImageOrder"]==n  & SOPClassUIDList[,"SeriesInstanceUID"]==SeriesInstanceUID ),  "SOPInstanceUID" ]
       field2Order <- as.character(SOPClassUIDList[which( SOPClassUIDList[,"SOPInstanceUID"] == tmpSOPIUID),"field2Order"])
       
       # per il caso in cui la tabella abbia solo una riga... (castala a marix)
       if( length(tabellaAssociazioni) == 4 ) {  tabellaAssociazioni <- matrix(tabellaAssociazioni,ncol=4); colnames(tabellaAssociazioni)<-tmpAN    }
-
+      
       # se questa slice risulta associata ad una ROI, allora calcola l'eventuale punto nel poligono
       if ( tmpSOPIUID %in% tabellaAssociazioni[,"ReferencedSOPInstanceUID"] ) {
         # if( n >= 306) browser()
@@ -1101,8 +1103,9 @@ geoLet<-function( use.ROICache = TRUE ) {
         
         # cicla, perche' piu' poliline di una stessa ROI potrebbe essere associata alla slice
         polylineDaAnalizzare <- tabellaAssociazioni[tabellaAssociazioni[,"ReferencedSOPInstanceUID"]==tmpSOPIUID,"ROIPointList"]
+        
         for( pol.num in 1:length(polylineDaAnalizzare)) {
-
+          # browser()
           ROI <- matrix(as.numeric(unlist(str_split(polylineDaAnalizzare[pol.num],"\\\\")[[1]])),ncol=3, byrow=T)
           xlim <- range(ROI[,1]); ylim <- range(ROI[,2]);  zlim <- range(ROI[,3])
 
@@ -1116,11 +1119,11 @@ geoLet<-function( use.ROICache = TRUE ) {
           if(field2Order == "IPP.x" ) {
             righe.valide <- which((risultato[,2] >= ylim[1] & risultato[,2] <= ylim[2]) & (risultato[,3] >= zlim[1] & risultato[,3] <= zlim[2]) )
           }        
-
+          
           # copia le righe valide all'interno della tabella
           risultato[righe.valide,5] <- mtr.punti[righe.valide,1]
           risultato[righe.valide,6] <- mtr.punti[righe.valide,2]
-
+          
           if(field2Order == "IPP.z" ) {
             points2Test <- risultato[righe.valide,c(1,2)] # not yet validated
             ROI <- ROI[,c(1,2)]
@@ -1137,7 +1140,7 @@ geoLet<-function( use.ROICache = TRUE ) {
           # Ora fai il point-in-polygon
           # browser()
           punti.interni <- which(in.out(ROI,points2Test))
-          
+
           # filtra risultato sui soli punti che ha senso scorrere per costruire la maschera di '1'
           # if( n >= 193) browser()
           # cat("\n N=",n)
@@ -1148,24 +1151,25 @@ geoLet<-function( use.ROICache = TRUE ) {
               tmp <- apply( risultato[,c(5,6)], MARGIN = 1, function(x){ image.arr[ x[1], x[2], n ] <<- 1} )  
             }
           }
-
-
         }
       } 
       pb$tick()
     }
     # browser()
     # ROIVoxelCube <- VC[,,] * image.arr[,dim(image.arr)[2]:1,]
+    # browser()
     ROIVoxelCube <- getImageVoxelCube( SeriesInstanceUID = SeriesInstanceUID)
-    
     if(giveBackOriginalImageToo==TRUE) {
       original.ROIVoxelCube <- ROIVoxelCube
     } else {
       original.ROIVoxelCube <- NA
     }
     
-    ROIVoxelCube[which( image.arr[,dim(image.arr)[2]:1,] == 0, arr.ind = T)] <- NA
-
+    # -im 
+    # ROIVoxelCube[which( image.arr[,dim(image.arr)[2]:1,] == 0, arr.ind = T)] <- NA
+    ROIVoxelCube <- ROIVoxelCube * image.arr[,dim(image.arr)[2]:1,]
+    # -fm 
+    
     # aggiorna la cache
     da.restituire <- list( "ROIVoxelCube" = ROIVoxelCube,
                            "original.ROIVoxelCube" = original.ROIVoxelCube 
@@ -1180,7 +1184,7 @@ geoLet<-function( use.ROICache = TRUE ) {
       cacheArea[["ROI"]][[Structure]]$voxelCube <<- ROIVoxelCube
       cacheArea[["ROI"]][[Structure]]$original.ROIVoxelCube <<- original.ROIVoxelCube
     }
-
+    
     return( da.restituire   )
   }
   #=================================================================================
@@ -1236,16 +1240,16 @@ geoLet<-function( use.ROICache = TRUE ) {
       SeriesInstanceUID <- giveBackImageSeriesInstanceUID()
       if( length(SeriesInstanceUID) > 1) stop("Too many SeriesIntanceUID have been found: which one?")
     }
-
+    
     Rows <- dim(dataStorage$img[[SeriesInstanceUID]][[1]])[1]
     Columns <- dim(dataStorage$img[[SeriesInstanceUID]][[1]])[2]
     Rows <- dim(dataStorage$img[[SeriesInstanceUID]][[1]])[2]
     Columns <- dim(dataStorage$img[[SeriesInstanceUID]][[1]])[1]
     
     Slices <- length(which(SOPClassUIDList[ ,"SeriesInstanceUID"]==SeriesInstanceUID))
-
+    
     cubone<-array(data = 0,dim = c(Columns,Rows,Slices))
-
+    
     for( i in seq( 1 , Slices ) )  {
       SOPInstanceUID <- SOPClassUIDList[ which(SOPClassUIDList[ ,"SeriesInstanceUID"]==SeriesInstanceUID & SOPClassUIDList[ ,"ImageOrder"]==i), "SOPInstanceUID"]
       cubone[,,i] <- dataStorage$img[[SeriesInstanceUID]][[SOPInstanceUID]]
@@ -1305,7 +1309,7 @@ geoLet<-function( use.ROICache = TRUE ) {
     SIUID <- unique(SOPClassUIDList[  which(SOPClassUIDList[,"kind"] == "PositronEmissionTomographyImageStorage"), "SeriesInstanceUID" ])
     return( SIUID )
   }
-
+  
   #=================================================================================
   # class
   #=================================================================================
@@ -1336,7 +1340,7 @@ geoLet<-function( use.ROICache = TRUE ) {
     
     CT.VC <- getImageVoxelCube(SeriesInstanceUID = CT.SIUID )
     PT.VC <- getImageVoxelCube(SeriesInstanceUID = PT.SIUID )    
-
+    
     maxCT <- max( dim(CT.VC) ); maxPT <- max( dim(PT.VC) )
     mis.x.CT <- length( maxCT - dim(CT.VC)[1] )
     mis.y.CT <- length( maxCT - dim(CT.VC)[2] )
@@ -1348,7 +1352,7 @@ geoLet<-function( use.ROICache = TRUE ) {
     PT.y <- matrix(unlist(lapply( 1:dim(PT.VC)[2], function(x) {get3DPosFromNxNy(Nx = 1,Ny = x,Nz = 1,SeriesInstanceUID = PT.SIUID ) } )),ncol=3,byrow = T)[,2]
     CT.z <- matrix(unlist(lapply( 1:dim(CT.VC)[3], function(x) {get3DPosFromNxNy(Nx = 1,Ny = 1,Nz = x,SeriesInstanceUID = CT.SIUID ) } )),ncol=3,byrow = T)[,3]
     PT.z <- matrix(unlist(lapply( 1:dim(PT.VC)[3], function(x) {get3DPosFromNxNy(Nx = 1,Ny = 1,Nz = x,SeriesInstanceUID = PT.SIUID ) } )),ncol=3,byrow = T)[,3]
-
+    
     if(!is.na(n.slice))   posizione.PT.from <- between( CT.z[n.slice], PT.z , debug.mode = debug.mode)
     if(!is.na(z.slice))   posizione.PT.from <- between( z.slice, PT.z , debug.mode = debug.mode)
     posizione.PT.to <- posizione.PT.from + 1
@@ -1356,11 +1360,11 @@ geoLet<-function( use.ROICache = TRUE ) {
     if(!is.na(n.slice)) zRelativePosition <- CT.z[n.slice]-PT.z[posizione.PT.from]
     if(!is.na(z.slice)) zRelativePosition <- z.slice-PT.z[posizione.PT.from]
     # CT.z <- c(CT.z,seq(maxCT - length(CT.z)) * delta.z + CT.z[ length(CT.z) ]) 
-
+    
     minVal <- min(PT.VC)-1000
     res <- CT.VC[,,1]
     res[1:dim(res)[1],1:dim(res)[2]] <- minVal
-
+    
     if( !is.na(n.slice) & (CT.z[n.slice] %in% PT.z) ) {
       browser()
     } else {
@@ -1374,7 +1378,7 @@ geoLet<-function( use.ROICache = TRUE ) {
                 as.double(as.array(res)), as.double(minVal) );      
     }
     
-
+    
     
     
     res <- matrix(aaa[13][[1]],nrow=dim(CT.VC)[1])
@@ -1389,8 +1393,8 @@ geoLet<-function( use.ROICache = TRUE ) {
       SeriesInstanceUID <- giveBackImageSeriesInstanceUID()
       if( length(SeriesInstanceUID) > 1) stop("Too many SeriesIntanceUID have been found: which one?")
     }
-      
-      
+    
+    
     if(!is.na(fileName)) return(getDICOMTag(tag = tag , fileName = fileName) )
     
     fileName <- SOPClassUIDList[ SOPClassUIDList[,"SeriesInstanceUID"]==SeriesInstanceUID,"fileName"][1]
@@ -1421,11 +1425,11 @@ geoLet<-function( use.ROICache = TRUE ) {
     zRiferimento <- CT.z[slice]
     slice.b <- which(unlist(lapply( 1:(length(PT.z)-1), function(x) {  sign((PT.z[x]-zRiferimento)*(PT.z[x+1]-zRiferimento)) } ))==-1)
     slice.t <- slice.b + 1
-
+    
     SOPInstanceUID.b.PT <- SOPClassUIDList[which(SOPClassUIDList[,"SeriesInstanceUID"] == PT.SIUID & SOPClassUIDList[,"ImageOrder"] == slice.b),"SOPInstanceUID"]
     SOPInstanceUID.t.PT <- SOPClassUIDList[which(SOPClassUIDList[,"SeriesInstanceUID"] == PT.SIUID & SOPClassUIDList[,"ImageOrder"] == slice.t),"SOPInstanceUID"]
     SOPInstanceUID.CT <- SOPClassUIDList[which(SOPClassUIDList[,"SeriesInstanceUID"] == CT.SIUID & SOPClassUIDList[,"ImageOrder"] == slice.t),"SOPInstanceUID"]
-
+    
     IOM.b.PT <- array(dataStorage$info[[PT.SIUID]][[SOPInstanceUID.b.PT]]$orientationMatrix)
     IOM.t.PT <- array(dataStorage$info[[PT.SIUID]][[SOPInstanceUID.t.PT]]$orientationMatrix)
     IOM.CT <- array(dataStorage$info[[CT.SIUID]][[SOPInstanceUID.CT]]$orientationMatrix)    
@@ -1437,7 +1441,7 @@ geoLet<-function( use.ROICache = TRUE ) {
     result <- CT.VC[,,slice] * 0 
     
     browser()
-
+    
     res<-.C("c_getInterpolatedSlice",
             as.integer(nx.PT), as.integer(ny.PT),
             as.integer(slice.b.PT), as.integer(slice.t.PT),
@@ -1458,7 +1462,7 @@ geoLet<-function( use.ROICache = TRUE ) {
   # Constructor
   #=================================================================================
   constructor<-function( use.ROICache , verbose ) {
-
+    
     # Attributes - set by user
     internalAttributes$maxDistanceForImageROICoupling<<-0.2
     internalAttributes$explicitRTStructFileName<<-NA
@@ -1480,7 +1484,7 @@ geoLet<-function( use.ROICache = TRUE ) {
     internalAttributes$defaultExtension.dicom <<- ""
     internalAttributes$defaultExtension.nifti<<- ".nii.gz"
     internalAttributes$threshold.4.niftiROI<<- 0.4
-
+    
     # Internal Structures and objs
     logObj <<- logHandler()                                   # log/error handler Object
     dataStorage <<- list()                                    # memory data structure
@@ -1507,7 +1511,7 @@ geoLet<-function( use.ROICache = TRUE ) {
     "getInterpolatedSlice"=getInterpolatedSlice,
     "getTag"=getTag,
     "getDataStorage"=getDataStorage
-    ))
+  ))
 }
 # # -im
 # # -----------------------------------------
