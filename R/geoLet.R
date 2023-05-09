@@ -998,6 +998,7 @@ geoLet<-function( use.ROICache = TRUE ) {
       }
       SeriesInstanceUID <- arr.SeriesInstanceUID[1]
     }
+    # browser()
     # Questo va fatto solo se e' chiaro che non si tratta di un nifti'
     risultato.ROI <- getROIVoxelsFromCTRMN( Structure = Structure, SeriesInstanceUID = SeriesInstanceUID,
                                             new.pixelSpacing = new.pixelSpacing, 
@@ -1083,9 +1084,11 @@ geoLet<-function( use.ROICache = TRUE ) {
       # per il caso in cui la tabella abbia solo una riga... (castala a marix)
       if( length(tabellaAssociazioni) == 4 ) {  tabellaAssociazioni <- matrix(tabellaAssociazioni,ncol=4); colnames(tabellaAssociazioni)<-tmpAN    }
       
+      # if( tmpSOPIUID == "1.3.12.2.1107.5.1.4.98879.30000019111423541678700003487" ) browser()
+      # browser()
       # se questa slice risulta associata ad una ROI, allora calcola l'eventuale punto nel poligono
       if ( tmpSOPIUID %in% tabellaAssociazioni[,"ReferencedSOPInstanceUID"] ) {
-        # if( n >= 306) browser()
+        # browser()
         # Calcola la DOM di quella SLICE
         DOM <- dataStorage$info[[SeriesInstanceUID]][[tmpSOPIUID]]$orientationMatrix[c(1:3,5:7,13:15)]
         if(all(new.pixelSpacing==old.ps)==FALSE) {
@@ -1104,8 +1107,15 @@ geoLet<-function( use.ROICache = TRUE ) {
         # cicla, perche' piu' poliline di una stessa ROI potrebbe essere associata alla slice
         polylineDaAnalizzare <- tabellaAssociazioni[tabellaAssociazioni[,"ReferencedSOPInstanceUID"]==tmpSOPIUID,"ROIPointList"]
         
+        # if( length(polylineDaAnalizzare) > 1 ) browser()
+        
         for( pol.num in 1:length(polylineDaAnalizzare)) {
           # browser()
+          # -im
+          tmp.risultato <- risultato
+          # -fm
+          # if( tmpSOPIUID == "1.3.12.2.1107.5.1.4.98879.30000019111423541678700003550" ) browser()
+          
           ROI <- matrix(as.numeric(unlist(str_split(polylineDaAnalizzare[pol.num],"\\\\")[[1]])),ncol=3, byrow=T)
           xlim <- range(ROI[,1]); ylim <- range(ROI[,2]);  zlim <- range(ROI[,3])
 
@@ -1145,10 +1155,16 @@ geoLet<-function( use.ROICache = TRUE ) {
           # if( n >= 193) browser()
           # cat("\n N=",n)
           if( length(righe.valide) > 1 & length(punti.interni) > 1) {
-            risultato <- risultato[righe.valide,][punti.interni,]
+            # -im
+            # risultato <- risultato[righe.valide,][punti.interni,]
+            tmp.risultato <- risultato[righe.valide,][punti.interni,]
+            # -fm
             # posiziona gli '1' della maschera (sempre che il count dei punti sopra sia > 0)
             if( length(risultato) > 0 ) {
-              tmp <- apply( risultato[,c(5,6)], MARGIN = 1, function(x){ image.arr[ x[1], x[2], n ] <<- 1} )  
+              # -im
+              # tmp <- apply( risultato[,c(5,6)], MARGIN = 1, function(x){ image.arr[ x[1], x[2], n ] <<- 1} )
+              tmp <- apply( tmp.risultato[,c(5,6)], MARGIN = 1, function(x){ image.arr[ x[1], x[2], n ] <<- 1} ) 
+              # -fm
             }
           }
         }
